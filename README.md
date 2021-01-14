@@ -35,7 +35,7 @@ For the steps 8-10 I use the ***initialize_replication.sh***.
 11. Create report.yaml with the structre shown in the example.
 
 
-## In case of started or second round packges:
+## In case of started or second round packages:
 ### First time we see it
 12. Open the corresponding trello card
 13. Run through the checklist on the trello card
