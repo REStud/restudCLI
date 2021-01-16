@@ -17,7 +17,7 @@ The order of work with packages is the following:
 	- It is not a necessity but I like to name the folders by MS numbers just like the git repos.
 6. Initializie git on the new folder and add the remote you created before.
 7. Open the zenodo link on the card in the comment section, it should look like __*https://zenodo.org/record/somenumbers*__
-	- If there is no link on the card, check the submission form comment (usually the first comment on any card), and check if the paper is subject to the __Data Availability Policy__
+	- If there is no link on the card, check the submission form comment (usually the first comment on any card), and check if the paper is subject to the [__Data Availability Policy__](https://restud.github.io/data-editor/before/#data-availability-policy)
 		- If not, then our job is done as we do not have to check the package.
 		- If yes, then ask Miklós about the zenodo link, this part is mostly automatized on his part, but there are some mistakes sometimes.
 
@@ -45,7 +45,7 @@ For the steps 8-10 I use the ***initialize_replication.sh***.
 		- '\' instead of '/' (previous only works in windows environment)
 		- not saved outputs
 		- missing guides to install packages/toolboxes that are needed for the code
-		- data citation and official DAS (Data Availabilty Statement) 
+		- data citation and official DAS (Data Availabilty Statement)
 14. Write the observed mistakes into the request/recommendation part
 	- for that we have a template about what are the standard codes in the *report.yaml* included in template_answers.txt
 	- it is possible that you observe something that is working the way it is submitted, but you have some quality of life improvement advices or better practices, etc. These go into the recommendation part.
