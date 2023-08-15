@@ -19,5 +19,12 @@ function restud
         case accept
             git tag accepted
             git push --tags
+        case download
+            if not test -f .zenodo
+                curl -Lo repo.zip "$argv[2]"
+                echo "$argv[2]" > .zenodo
+            else
+                xargs .zenodo | curl -Lo repo.zip 
+            end
     end
 end
