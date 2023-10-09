@@ -1,9 +1,40 @@
+# Onboading for REStud replication team
+The most important tools we use during the replication process are:
+- Github
+- Trello board
+- Zenodo archives
+- Slack and emails
+  
+## Github
+![github](https://github.com/REStud/workflow/assets/47605029/407ec316-e184-4fd8-93dd-c6387ff88212)
+
+We create a repository for each package named after it's manuscript number and document all the changes in the codes, exhibits or data and create a report based on all the changes needed and missing aspects of the replication package. Any person onbaording at the REStud replication team should ask *Miklós* for permissions to be a member of the [organization](https://github.com/restud-replication-packages).
+
+## Trello board
+![trello_board](https://github.com/REStud/workflow/assets/47605029/bcfc9e7f-58b4-4784-bb2e-c6b45badfa4c)
+
+This is the team kanban board, we use it to track the workflow of the packages and communicate some specifics about them. These are usually comments about where to reach the packages if the zenodo link is not working or any other necesasry or peculiar information on the replication packges. Your trello account can be linked to any of the usual account (google, apple, microsoft etc.) You should create a trello account and ask *Miklós* for invitation or be invited through your choice of account. After having the permissions to use the board you will be able to reach it [here](https://trello.com/b/7YNdeENt/restud-replications)
+
+## Zenodo archives
+![image](https://github.com/REStud/workflow/assets/47605029/bbbf3155-948d-4ae6-ad30-c7e728801f4d)
+
+The Zenodo archives are the public sharing and archiving portal for the authors to share their replication packages with us. You can reach the zenodo community [here](https://zenodo.org/communities/restud-replication/?page=1&size=20), the community stores all the submitted packages. There is no need for any permissions or accounts as the packages stored on zenodo are all public.
+
+## Slack
+You should be invited to the CEU Microdata slack organization's restud-packages chanell. You can be invited by any channel member.
+
+## Emails
+There is also a microsoft exchange outlook account under dataeditor@restud.com, which is Miklós' restud email account, the credentials might or might not be shared with the onboarding person depending on the role they will fill in for the replication team.
+
+If there are any questions during the onboarding process please reach out to us by email or slack, preferably slack if you already have it set up.
+
 # Replication workflow for REStud packages
 
 The order of work with packages is the following:
 	1. orange packages = short reviews, in order of inflow (descending order in the columns)
-	2. purple packages = revisions, second rounds, in order of inflow
-	3. all the others in order of inflow
+ 	2. red packages = urgent reviews, in order of inflow
+	3. purple packages = revisions, second or higher rounds, in order of inflow
+	4. all the others in order of inflow
 
 1. Open the [REStud replications trello board](https://trello.com/b/7YNdeENt/restud-replications)
 
