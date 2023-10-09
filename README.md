@@ -3,28 +3,39 @@ The most important tools we use during the replication process are:
 - Github
 - Trello board
 - Zenodo archives
+- tresorit/Data Editor tresor
 - Slack and emails
+- Watch replication videos
   
 ## Github
 ![github](https://github.com/REStud/workflow/assets/47605029/407ec316-e184-4fd8-93dd-c6387ff88212)
 
-We create a repository for each package named after it's manuscript number and document all the changes in the codes, exhibits or data and create a report based on all the changes needed and missing aspects of the replication package. Any person onbaording at the REStud replication team should ask *Miklós* for permissions to be a member of the [organization](https://github.com/restud-replication-packages).
+We create a repository for each package named after it's manuscript number and document all the changes in the codes, exhibits or data and create a report based on all the changes needed and missing aspects of the replication package. Any person onbaording at the REStud replication team should ask *@korenmiklos* for permissions to be a member of the [organization](https://github.com/restud-replication-packages).
 
 ## Trello board
 ![trello_board](https://github.com/REStud/workflow/assets/47605029/bcfc9e7f-58b4-4784-bb2e-c6b45badfa4c)
 
-This is the team kanban board, we use it to track the workflow of the packages and communicate some specifics about them. These are usually comments about where to reach the packages if the zenodo link is not working or any other necesasry or peculiar information on the replication packges. Your trello account can be linked to any of the usual account (google, apple, microsoft etc.) You should create a trello account and ask *Miklós* for invitation or be invited through your choice of account. After having the permissions to use the board you will be able to reach it [here](https://trello.com/b/7YNdeENt/restud-replications)
+This is the team kanban board, we use it to track the workflow of the packages and communicate some specifics about them. These are usually comments about where to reach the packages if the zenodo link is not working or any other necesasry or peculiar information on the replication packges. Your trello account can be linked to any of the usual account (google, apple, microsoft etc.) You should create a trello account and ask *@korenmiklos* for invitation or be invited through your choice of account. After having the permissions to use the board you will be able to reach it [here](https://trello.com/b/7YNdeENt/restud-replications)
 
 ## Zenodo archives
 ![image](https://github.com/REStud/workflow/assets/47605029/bbbf3155-948d-4ae6-ad30-c7e728801f4d)
 
 The Zenodo archives are the public sharing and archiving portal for the authors to share their replication packages with us. You can reach the zenodo community [here](https://zenodo.org/communities/restud-replication/?page=1&size=20), the community stores all the submitted packages. There is no need for any permissions or accounts as the packages stored on zenodo are all public.
 
+## Tresorit
+![image](https://github.com/REStud/workflow/assets/47605029/7eb60f97-43fa-4ca3-b0b4-ac85f0a8d5fe)
+
+There are cases when the zendod download is not working properly because the package is too large or the authors want to share proprietary/confidential data with us for replication revision purposes. In this case we use Tresorit, we send them a link to upload their replication package to the incoming folder of our Data Editor tresor. It might also happend that the authors share their pacakge on dropbox and we are the ones uploading them to tresorit to share it with other replicators in the team. You should register a tresorit account (process is similar to trello) and then ask *@korenmiklos* for permissions to reach it.
+
 ## Slack
 You should be invited to the CEU Microdata slack organization's restud-packages chanell. You can be invited by any channel member.
 
 ## Emails
 There is also a microsoft exchange outlook account under dataeditor@restud.com, which is Miklós' restud email account, the credentials might or might not be shared with the onboarding person depending on the role they will fill in for the replication team.
+
+## Replication videos
+There are 2 versions of the videos for replication: the first is created by @korenmiklos in 2020 as the original explanatory instructions about the replication process, the second is created by @gergelyattilakiss in 2022 as an update and documentation on the same process. These are taking ~30 mins for Miklos' version and ~3*7 mins for Gergely's version and can be reached in the Data Editor tresor.
+
 
 If there are any questions during the onboarding process please reach out to us by email or slack, preferably slack if you already have it set up.
 
