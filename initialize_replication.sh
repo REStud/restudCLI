@@ -5,9 +5,15 @@ zenodo_link=$2 # second argument to call is the zenodo link
 mkdir $number
 cd $number
 git init
-git lfs install
+gh repo create restud-replication-packages/$number --private --team Replicators
 git remote add origin git@github.com:restud-replication-packages/$number.git
 wget -O replication.zip "$zenodo_link"
 unzip replication.zip
 rm replication.zip
-subl report.yaml
+git checkout -b author
+find . -type f -size +20M | cut -c 3- > .gitignore
+git add .
+git commit -m "initial commit"
+git push origin author
+git checkout -b version1
+touch report.yaml

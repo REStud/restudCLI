@@ -10,6 +10,8 @@ tags:
   - &macosx Remove the folder __MACOSX from the .zip file.
   - &merge_readme Please merge the README documents into one that explains everything from data needs to software and hardware.
   - &forward_slash Use "/" rather than "\" in file names. The former works on all three major platforms, the latter only on Windows.
+  - &software_requirements Please add a section in the README called software requirements that lists all the software requirements for running the replication package. E.g. OS and analysis software you ran the code last time with, non-standard software packages and how to install them. For example, see https://www.templatereadme.org/
+  - &hardware_requirements Please also add a section called runtime/hardware requirements that tells the configuration of the computer you ran the replication package for the last time and your estimate how much time it took. This is helpful for later replicators to know what to expect.
   - >
     Thank you for making the changes I asked for. I have now accepted the package.
 
