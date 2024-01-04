@@ -32,5 +32,24 @@ function restud
            git init
            gh repo create restud-replication-packages/$argv[2] --private --team Replicators
            git remote add origin git@github.com:restud-replication-packages/$argv[2].git
+           git checkout -b author
+        case zenodo-pull
+            if count * > 0
+                git switch author
+                ls -d */ | xargs rm -rf
+            end
+            restud download $argv[2]
+            unzip repo.zip
+            rm repo.zip
+            find . -type f -size +20M | cut -c 3- > .gitignore
+            git add .
+            if test -n (git branch | grep -v 'author')
+                echo 'there is other branch than author'
+                git commit -m "update to zenodo $argv[2]"
+            else
+                echo 'there is no other branch than author'
+                git commit -m "initial commit"
+            end
+            git push origin author
     end
 end
