@@ -34,8 +34,8 @@ function restud
            git remote add origin git@github.com:restud-replication-packages/$argv[2].git
            git checkout -b author
         case zenodo-pull
+            git switch author
             if count * > 0
-                git switch author
                 ls -d */ | xargs rm -rf
             end
             restud download $argv[2]
@@ -50,6 +50,10 @@ function restud
                 echo 'there is no other branch than author'
                 git commit -m "initial commit"
             end
-            git push origin author
+            git push
+        case report
+            git add report.yaml
+            git commit -m "update report"
+            git push
     end
 end
