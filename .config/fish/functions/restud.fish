@@ -38,7 +38,6 @@ function restud
             else
                 set email_template $RESTUD/response2.txt
             end
-            end
             python $RESTUD/render.py $email_template report.yaml $RESTUD/template.yaml > response.txt
             pbcopy < response.txt
             git add report.yaml response.txt
