@@ -13,18 +13,25 @@ function restud
                 set v (math $v + 1)
             end
         case revise
+            set branch_name (git symbolic-ref --short HEAD)
+            if test "$branch_name" = "version1"
+                python3 $RESTUD/render.py $RESTUD/response1.txt report.yaml $RESTUD/template.yaml > response.txt
+            else
+                python3 $RESTUD/render.py $RESTUD/response1.txt report.yaml $RESTUD/template.yaml > response.txt
+            end
+            pbcopy < response.txt
             git add report.yaml response.txt
             git commit -m "edit report"
             git push
         case accept
             git tag accepted
             git push --tags
-        case download
-            if not test -f .zenodo
-                curl -Lo repo.zip "$argv[2]"
-                echo "$argv[2]" > .zenodo
+            set branch_name (git symbolic-ref --short HEAD)
+            if test "$branch_name" = "version1"
+                python3 $RESTUD/render.py $RESTUD/accept2.txt report.yaml $RESTUD/template.yaml > accept.txt
             else
-                xargs .zenodo | curl -Lo repo.zip 
+                python3 $RESTUD/render.py $RESTUD/accept2.txt report.yaml $RESTUD/template.yaml > accept.txt
             end
+            pbcopy < accept.txt
     end
 end

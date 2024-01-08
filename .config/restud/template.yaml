@@ -3,18 +3,14 @@ tags:
   - &stata_packages Add all Stata packages to the README that you use with instructions on how to install them.
   - &matlab_toolboxes Mention all Matlab toolboxes that you use in the README.
   - &relative_path Replace absolute paths in the scripts with relative paths. Let readers know which folder to run your code from and use paths relative to that.
-  - &cite_data Add data citations in the README as well as the manuscript for each dataset you use, whether you include it in the package or not. Citing data sources in the manuscript is the best was of directing readers to them. Please see here (https://social-science-data-editors.github.io/guidance/Data_citation_guidance.html) for examples and further guidance.
+  - &cite_data Add data citations in the README as well as the manuscript for each dataset you use, whether you include it in the package or not. Citing data sources in the manuscript is the best was of directing readers to them. Please see here (https://social-science-data-editors.github.io/guidance/addtl-data-citation-guidance.html) for examples and further guidance.
   - &DAS Include a formal Data Availability Statement for each of the datasets you are using. The goal is to describe clearly the steps that readers have to take if they want to access the data. Please see here (https://social-science-data-editors.github.io/template_README/) for examples and further guidance.
+  - &readme Please provide a README file in plain text, markdown or PDF format to explain the reader how to replicate your work. See here (https://social-science-data-editors.github.io/template_README/) for examples and further guidance.
   - &include_data If the license permits, include raw data in the replication package. URLs to data websites may change and future readers may not be able to easily find the datasets you use.
   - &confidential_data I understand some of your data is confidential. To help me understand the context better, please answer the following questions in an email to me (not in the README). https://restud.github.io/data-editor/before/#what-if-your-dataset-is-confidential
   - &macosx Remove the folder __MACOSX from the .zip file.
-  - &merge_readme Please merge the README documents into one that explains everything from data needs to software and hardware.
   - &forward_slash Use "/" rather than "\" in file names. The former works on all three major platforms, the latter only on Windows.
-  - &software_requirements Please add a section in the README called software requirements that lists all the software requirements for running the replication package. E.g. OS and analysis software you ran the code last time with, non-standard software packages and how to install them. For example, see https://www.templatereadme.org/
-  - &hardware_requirements Please also add a section called runtime/hardware requirements that tells the configuration of the computer you ran the replication package for the last time and your estimate how much time it took. This is helpful for later replicators to know what to expect.
-  - >
-    Thank you for making the changes I asked for. I have now accepted the package.
-
-    Please edit the Zenodo entry and add it to the Restud list by selecting 'restud-replication' among Communities. (This will not change the DOI.)
-
-    Add the Zenodo DOI to the Data Availability Statement at the end of the manuscript you are sending to Ann (in cc). See sample DASs here: https://academic.oup.com/journals/pages/authors/preparing_your_manuscript/research-data-policy#data2
+  - &requirements Please describe the computational requirements for running your package. See https://social-science-data-editors.github.io/template_README/template-README.html#computational-requirements for explanation and examples.
+  - &fortran Describe in the README how the Fortran code can be compiled and what other libraries are needed.
+ 
+    
