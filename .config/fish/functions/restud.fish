@@ -1,6 +1,6 @@
 function restud
     switch $argv[1]
-        case init
+        case install
             set temp_folder (mktemp -d)
             cd $temp_folder
             git clone git@github.com:REStud/workflow.git
@@ -12,6 +12,8 @@ function restud
             echo "Then restart your terminal."
             cd -
             rm -rf $temp_folder
+        case init
+            echo "Not implemented yet. Did you mean 'restud install'?"
         case pull
             if not test -d $argv[2]
                 git clone git@github.com:restud-replication-packages/$argv[2].git
