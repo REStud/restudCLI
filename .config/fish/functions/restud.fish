@@ -17,7 +17,7 @@ function restud
             if test "$branch_name" = "version1"
                 python3 $RESTUD/render.py $RESTUD/response1.txt report.yaml $RESTUD/template.yaml > response.txt
             else
-                python3 $RESTUD/render.py $RESTUD/response1.txt report.yaml $RESTUD/template.yaml > response.txt
+                python3 $RESTUD/render.py $RESTUD/response2.txt report.yaml $RESTUD/template.yaml > response.txt
             end
             pbcopy < response.txt
             git add report.yaml response.txt
@@ -28,7 +28,7 @@ function restud
             git push --tags
             set branch_name (git symbolic-ref --short HEAD)
             if test "$branch_name" = "version1"
-                python3 $RESTUD/render.py $RESTUD/accept2.txt report.yaml $RESTUD/template.yaml > accept.txt
+                python3 $RESTUD/render.py $RESTUD/accept1.txt report.yaml $RESTUD/template.yaml > accept.txt
             else
                 python3 $RESTUD/render.py $RESTUD/accept2.txt report.yaml $RESTUD/template.yaml > accept.txt
             end
