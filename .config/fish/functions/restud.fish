@@ -1,6 +1,7 @@
 function restud
     switch $argv[1]
         case install
+            set current_folder (pwd)
             set temp_folder (mktemp -d)
             cd $temp_folder
             git clone git@github.com:REStud/workflow.git
@@ -10,15 +11,16 @@ function restud
             echo "Please add the following line to your .config/fish/config.fish file:"
             echo "set -Ux RESTUD ~/.config/restud"
             echo "Then restart your terminal."
-            cd -
+            cd $current_folder
             rm -rf $temp_folder
         case init
+            set current_folder (pwd)
             set temp_folder (mktemp -d)
             cd $temp_folder
             cp $RESTUD/pyproject.toml .
             poetry install
             poetry shell
-            cd -
+            cd $current_folder
         case pull
             if not test -d $argv[2]
                 git clone git@github.com:restud-replication-packages/$argv[2].git
