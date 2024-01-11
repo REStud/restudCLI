@@ -24,7 +24,7 @@ function restud
                 curl -Lo repo.zip "$argv[2]"
                 echo "$argv[2]" > .zenodo
             else
-                xargs .zenodo | curl -Lo repo.zip 
+                curl -Lo repo.zip (head -n1 .zenodo)
             end
         case new
            mkdir $argv[2] 
@@ -35,22 +35,23 @@ function restud
            git checkout -b author
         case zenodo-pull
             git switch author
-            if count * > 0
+            set num_dirs (ll | grep ^d | wc -l)
+            if test (math $num_dirs) -lt 0 
                 ls -d */ | xargs rm -rf
             end
-            restud download $argv[2]
+            restud download "$argv[2]"
             unzip repo.zip
             rm repo.zip
             find . -type f -size +20M | cut -c 3- > .gitignore
             git add .
-            if test -n (git branch | grep -v 'author')
+            if not test -n (git branch | grep -v 'author')
                 echo 'there is other branch than author'
                 git commit -m "update to zenodo $argv[2]"
             else
                 echo 'there is no other branch than author'
                 git commit -m "initial commit"
             end
-            git push
+            git push origin author
         case report
             git add report.yaml
             git commit -m "update report"
