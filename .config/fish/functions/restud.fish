@@ -57,13 +57,6 @@ function restud
             end
             python $RESTUD/render.py $email_template report.yaml $RESTUD/template.yaml > accept.txt
             pbcopy < accept.txt
-        case download
-            if not test -f .zenodo
-                curl -Lo repo.zip "$argv[2]"
-                echo "$argv[2]" > .zenodo
-            else
-                curl -Lo repo.zip (head -n1 .zenodo)
-            end
         case new
            mkdir $argv[2] 
            cd $argv[2]
@@ -71,28 +64,40 @@ function restud
            gh repo create restud-replication-packages/$argv[2] --private --team Replicators
            git remote add origin git@github.com:restud-replication-packages/$argv[2].git
            git checkout -b author
-        case zenodo-pull
+        case download
             git switch author
-            set num_dirs (ll | grep ^d | wc -l)
-            if test (math $num_dirs) -lt 0 
-                ls -d */ | xargs rm -rf
-            end
-            restud download "$argv[2]"
-            unzip repo.zip
-            rm repo.zip
-            find . -type f -size +20M | cut -c 3- > .gitignore
-            git add .
+            restud _empty_folder
+            restud _download_zenodo "$argv[2]"
+            restud _commit
             if not test -n (git branch | grep -v 'author')
                 echo 'there is other branch than author'
                 git commit -m "update to zenodo $argv[2]"
             else
                 echo 'there is no other branch than author'
-                git commit -m "initial commit"
+                git commit -m "initial commit from zenodo $argv[2]"
             end
             git push origin author
         case report
             git add report.yaml
             git commit -m "update report"
             git push
+        # private functions not exposed to end user
+        case _download_zenodo
+            if not test -f .zenodo
+                curl -Lo repo.zip "$argv[2]"
+                echo "$argv[2]" > .zenodo
+            else
+                curl -Lo repo.zip (head -n1 .zenodo)
+            end
+            unzip repo.zip
+            rm repo.zip
+        case _commit
+            find . -type f -size +20M | cut -c 3- > .gitignore
+            git add .
+        case _empty_folder
+            set num_dirs (ll | grep ^d | wc -l)
+            if test (math $num_dirs) -lt 0 
+                ls -d */ | xargs rm -rf
+            end
     end
 end
