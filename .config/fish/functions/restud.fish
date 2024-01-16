@@ -21,6 +21,7 @@ function restud
             poetry install
             poetry shell
             cd $current_folder
+            set -Ux RESTUD ~/.config/restud
         case pull
             if not test -d $argv[2]
                 git clone git@github.com:restud-replication-packages/$argv[2].git
