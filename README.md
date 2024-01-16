@@ -1,6 +1,15 @@
 # Fish command `restud`
 
 ## Installation
+To install `restud` you need to have [fish shell](https://fishshell.com/) and [poetry](https://python-poetry.org/) installed. Then you can install `restud` with:
+```bash
+curl -sL https://raw.githubusercontent.com/REStud/install_restud_tool/main/install.sh | source
+```
+
+Later you can update `restud` with:
+```bash
+restud install
+```
 
 ## Usage
 Create a repository for a new replication package 29123:
