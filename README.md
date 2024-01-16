@@ -1,3 +1,49 @@
+# Fish command `restud`
+
+## Installation
+
+## Usage
+Create a repository for a new replication package 29123:
+```bash
+restud new 29123
+```
+This creates a new repo on Github and clones it to your local machine. The default branch is called `author`.
+
+Download files from Zenodo URL https://zenodo.org/record/12345:
+```bash
+restud download https://zenodo.org/record/12345
+```
+Deletes all the files in the current directory. Downloads and unzips the files to the current directory. The large files are gitignored, the small ones are committed and pushed to `author` branch.
+
+Commit the report:
+```bash
+restud report
+```
+
+Pull the most recent version of the package from GitHub:
+```bash
+restud pull 29123
+```
+This clones or pulls (if exists) the package 29123 and iterates through versions until the last one is checked out.
+
+Render the report for a revision:
+```bash
+restud revise
+```
+This renders `response.txt` from `report.yaml` and copies it to the clipboard so that the data editor can paste it in the email to the author. Both files are committed and pushed to the respective `version` branch. This action stops the clock on the revision for the editorial team.
+
+Render the acceptance email:
+```bash
+restud accept
+```
+This renders `accept.txt` from `report.yaml` and copies it to the clipboard so that the data editor can paste it in the email to the author. Both files are committed and pushed to the respective `version` branch. The commit is tagged `accepted` and the tag is pushed to GitHub. This action stops the clock for the editorial team.
+
+If you need the Python environment for rendering the reports, you can create it with:
+```bash
+restud init
+```
+This creates a poetry environment in a temporary directory and installs the dependencies from `pyproject.toml`.
+
 # Onboading for REStud replication team
 The most important tools we use during the replication process are:
 - Github
