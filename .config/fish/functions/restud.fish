@@ -68,7 +68,7 @@ function restud
             git switch author
             restud _empty_folder
             restud _get_key
-            restud _download_zenodo (echo "$argv[2]?acces_token=$Zenodo_API_KEY"
+            restud _download_zenodo (echo "$argv[2]?acces_token=$Zenodo_API_KEY")
             restud _commit
             if not test -n (git branch | grep -v 'author')
                 echo 'there is other branch than author'
