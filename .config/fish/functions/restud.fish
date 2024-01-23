@@ -67,11 +67,12 @@ function restud
         case download
             git switch author
             restud _empty_folder
-            restud _download_zenodo "$argv[2]"
+            restud _get_key
+            restud _download_zenodo (echo "$argv[2]?acces_token=$Zenodo_API_KEY"
             restud _commit
             if not test -n (git branch | grep -v 'author')
                 echo 'there is other branch than author'
-                git commit -m "update to zenodo $argv[2]"
+                git commit -m "update to zenodo version $argv[2]"
             else
                 echo 'there is no other branch than author'
                 git commit -m "initial commit from zenodo $argv[2]"
