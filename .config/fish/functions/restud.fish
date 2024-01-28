@@ -100,8 +100,13 @@ function restud
             git add .
         case _empty_folder
             set num_dirs (ll | grep ^d | wc -l)
-            if test (math $num_dirs) -lt 0 
-                ls -d */ | xargs rm -rf
+            if test (math $num_dirs) -ne 0
+                echo "Removing previous directories!" 
+                ls -d */ | string replace " " "\ " > dirs
+                xargs -I{} rm -rfv {} < dirs 
+                rm dirs
+            else 
+                echo "No directories in the folder!"
             end
     end
 end
