@@ -68,16 +68,19 @@ function restud
             git switch author
             restud _empty_folder
             restud _get_key
-            restud _download_zenodo (echo "$argv[2]?acces_token=$Zenodo_API_KEY"
+            restud _download_zenodo "$argv[2]"
             restud _commit
-            if not test -n (git branch | grep -v 'author')
+            set _branches (git branch -a | grep -v 'author')
+            if test "$_branches" = ""
+                echo 'there is no  other branch than author'
+                git commit -m "initial commit from zenodo $argv[2]"
+                git push origin author --set-upstream
+                
+            else
                 echo 'there is other branch than author'
                 git commit -m "update to zenodo version $argv[2]"
-            else
-                echo 'there is no other branch than author'
-                git commit -m "initial commit from zenodo $argv[2]"
+                git push 
             end
-            git push origin author
         case report
             git add report.yaml
             git commit -m "update report"
