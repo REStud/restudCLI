@@ -75,16 +75,19 @@ function restud
                 echo 'there is no  other branch than author'
                 git commit -m "initial commit from zenodo $argv[2]"
                 git push origin author --set-upstream
-                
+                git checkout -b version1
             else
                 echo 'there is other branch than author'
                 git commit -m "update to zenodo version $argv[2]"
                 git push 
+                set version (eval "git branch -a | grep 'version' | grep -o -E '[0-9]+' | tail -1")
+                set version (math $version + 1)
+                git checkout -b verion$version
             end
-        case report
+        case report $argv[2]
             git add report.yaml
             git commit -m "update report"
-            git push
+            git push origin $argv[2]
         # private functions not exposed to end user
         case _get_key
             set -x ZENODO_API_KEY (head -n1 ~/.config/.zenodo_api_key)
