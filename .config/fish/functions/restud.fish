@@ -57,6 +57,7 @@ function restud
             end
             python $RESTUD/render.py $email_template report.yaml $RESTUD/template.yaml > accept.txt
             pbcopy < accept.txt
+            restud _check_community
         case new
            mkdir $argv[2] 
            cd $argv[2]
@@ -94,7 +95,7 @@ function restud
         case _download_zenodo
             if not test -f .zenodo
                 curl -Lo repo.zip "$argv[2]?access_token=$ZENODO_API_KEY"
-                # for submitted records this does not work as there it has to be and '&' not '?' ?
+                # for submitted records we should check cookie settings.
                 echo "$argv[2]" > .zenodo
             else
                 curl -Lo repo.zip (head -n1 .zenodo)"?access_token=$ZENODO_API_KEY"
@@ -113,6 +114,15 @@ function restud
                 rm dirs
             else 
                 echo "No directories in the folder!"
+            end
+        case _get_id
+            set zenodo_id (head .zenodo | grep -o -E '/[0-9]+/' | string replace / "" -a)
+        case _check_community
+            restud _get_id
+            if test -z (curl -i "https://zenodo.org/api/records/$zenodo_id/communities" |grep 'restud-replication')
+                echo "Not part of REStud community"
+            else
+                echo "Part of REStud community"
             end
     end
 end
