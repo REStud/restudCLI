@@ -81,6 +81,7 @@ function restud
                 restud _get_latest_version
                 git checkout -b verion$v
             end
+            restud _save_id
         case report $argv[2]
             git add report.yaml
             git commit -m "update report"
@@ -115,7 +116,7 @@ function restud
             set zenodo_id (head .zenodo | grep -o -E '/[0-9]+/' | string replace / "" -a)
             echo -e \n$zenodo_id >> .zenodo_id
         case _get_id
-            set zendod_id (head .zendod_id -n 1)
+            set zendod_id (tail -1 .zendod_id)
         case _check_community
             restud _get_id
             if test -z (curl -i "https://zenodo.org/api/records/$zenodo_id/communities" |grep 'restud-replication')
