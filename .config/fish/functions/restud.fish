@@ -86,12 +86,15 @@ function restud
             git commit -m "update report"
             git push
         # private functions not exposed to end user
+        case _get_key
+            set -x ZENODO_API_KEY (head -n1 ~/.config/.zenodo_api_key)
         case _download_zenodo
             if not test -f .zenodo
-                curl -Lo repo.zip "$argv[2]"
+                curl -Lo repo.zip "$argv[2]?access_token=$ZENODO_API_KEY"
+                # for submitted records this does not work as there it has to be and '&' not '?' ?
                 echo "$argv[2]" > .zenodo
             else
-                curl -Lo repo.zip (head -n1 .zenodo)
+                curl -Lo repo.zip (head -n1 .zenodo)"?access_token=$ZENODO_API_KEY"
             end
             unzip repo.zip
             rm repo.zip
