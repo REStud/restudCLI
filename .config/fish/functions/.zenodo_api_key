@@ -1,0 +1,2 @@
+To create a zenodo api_key go to  https://zenodo.org/account/settings/applications/tokens/new/ 
+and save the token into a file named as ".zenodo_api_key" into "~/.config/.zenodo_api_key"
