@@ -88,7 +88,7 @@ function restud
             git push origin $argv[2]
         # private functions not exposed to end user
         case _get_key
-            set -x ZENODO_API_KEY (head -n1 ~/.config/.zenodo_api_key)
+            set -gx ZENODO_API_KEY (head -n1 ~/.config/.zenodo_api_key)
         case _download_zenodo
             if not test -f .zenodo
                 curl -Lo repo.zip "$argv[2]?access_token=$ZENODO_API_KEY"
@@ -112,34 +112,34 @@ function restud
             else 
                 echo "No directories in the folder!"
             end
-        case _save_id
-            set zenodo_id (head .zenodo | grep -o -E '/[0-9]+/' | string replace / "" -a)
-            echo -e \n$zenodo_id >> .zenodo_id
         case _get_id
-            set zendod_id (tail -1 .zendod_id)
+            set -gx ZENODO_ID (head .zenodo | grep -o -E '/[0-9]+/' | string replace / "" -a)
         case _check_community
             restud _get_id
-            if test -z (curl -i "https://zenodo.org/api/records/$zenodo_id/communities" |grep 'restud-replication')
-                echo \n\n\n"Not part of REStud community."\n\n\n
-                read -p "Accept into the community? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] || exit 1
+            if test -z (curl -i "https://zenodo.org/api/records/$ZENODO_ID/communities" | grep 'restud-replication')
+                echo \n\n\n\t"Replication package of $ZENODO_ID is not part of REStud community."\n\n\n
+                read -P "Accept into the community? (y/n)" -n 1 -x confirm
+                if test $confirm != "y"
+                    return 1
+                end
                 restud _community_accept
             else
                 echo \n\n\n"Already part of REStud community!"\n\n\n
             end
-        case _get_request
+        case _get_accept_request
             restud _get_id
             restud _get_key
-            set url "https://zenodo.org/api/communities/451be469-757a-4121-8792-af8ffc4461fb/requests?size=200&is_open=true&access_token="
-            curl "$url$ZENODO_API_KEY" | jq --arg zendod_id $zenodo_id '.hits.hits[] | select(.topic.record==$zenodo_id) | .links.actions.accept' > .accept_request
+            set url "https://zenodo.org/api/records/$ZENODO_ID/requests"
+            curl "$url?access_token=$ZENODO_API_KEY" | jq --arg zendod_id $ZENODO_ID '.hits.hits[].links.actions.accept' > .accept_request
         case _community_accept 
-            restud _get_request
-            set url (head .accept_request)
-            curl -X POST -H "Content-Type: application/json" "$url?access_token=$ZENODO_API_KEY"
+            restud _get_accept_request
+            set url (head .accept_request | string replace \" "" -a)
+            curl -X POST "$url?access_token=$ZENODO_API_KEY"
             rm .accept_request
         case _get_latest_version
-            set v 1
+            set -x v 1
             while git switch version$v
-                set v (math $v + 1)
+                set -x v (math $v + 1)
             end
     end
 end
