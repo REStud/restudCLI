@@ -66,7 +66,11 @@ function restud
             git switch author
             restud _empty_folder
             restud _get_key
-            restud _download_zenodo "$argv[2]"
+            if test (string match -r "preview" "$argv[2]")
+                restud _download_zenodo_preview "$argv[2]"
+            else
+                restud _download_zenodo "$argv[2]"
+            end
             restud _commit
             set _branches (git branch -a | grep -v 'author')
             if test "$_branches" = ""
@@ -92,13 +96,42 @@ function restud
         case _download_zenodo
             if not test -f .zenodo
                 curl -Lo repo.zip "$argv[2]?access_token=$ZENODO_API_KEY"
-                # for submitted records we should check cookie settings.
                 echo "$argv[2]" > .zenodo
             else
                 curl -Lo repo.zip (head -n1 .zenodo)"?access_token=$ZENODO_API_KEY"
             end
             unzip repo.zip
             rm repo.zip
+        case _download_zenodo_preview
+            restud _get_cookie
+             if not test -f .zenodo
+                curl -b "session=$cookie_value" -Lo repo.zip "$argv[2]"
+                echo "$argv[2]" > .zenodo
+            else
+                curl -b "session=$cookie_value" -Lo repo.zip (head -n1 .zenodo)
+            end
+            unzip repo.zip
+            rm repo.zip
+        case _get_cookie
+            if not test -f ~/.config/restud-cookie.json
+                restud _create_cookie
+            end
+            set expr_dt (jq .expiration-date ~/.config/restud-cookie.json)
+            set today () # TODO get today's date
+            if test (date -d $expr_dt +%s) -ge (date -d $today +%s)
+                restud _create_cookie
+            end
+            set -x cookie_value (jq .value ¬/.config/restud-cookie.json)
+        case _create_cookie
+            echo \n\n\n"Your restud cookie either does not exist or expired, to download you need to create a new one!"\n\n\n
+            read -P "Do you want to create a new one into ~/.config/restud-cookie.json? (y/n)" -n 1 -x confirm
+            if test $confirm != "y"
+                    return 1
+            end
+            echo "To create blabla."
+            read -P "Please copy cookie value:" -x value
+            read -P "Please copy expiration date:" expr_dt
+            echo '{"name":"session", "value":$value, "expiration-date":$expr_dt}' | jq . > ~/.config/restud-cookie.json
         case _commit
             find . -type f -size +20M | cut -c 3- > .gitignore
             git add .
