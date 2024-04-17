@@ -128,9 +128,9 @@ function restud
             if test $confirm != "y"
                     return 1
             end
-            echo "To create blabla."
+            echo "To create a new cookie you need two values. The zenodo session cookie value and expiration date. You can access them by opening zenodo.org, logging in and then access the developer tools panel. You can open it by F12/ctrl+shift+i or through settings/more tools/developer tools. Then look for Application sheet in the developer tools, in that sheet look for Storage/Cookies. It should list all active cookies for the page, there you need the cookie named session."
             read -P "Please copy cookie value:" -x value
-            read -P "Please copy expiration date:" expr_dt
+            read -P "Please copy expiration date (YYYY-MM-DD):" expr_dt
             echo '{"name":"session", "value":$value, "expiration-date":$expr_dt}' | jq . > ~/.config/restud-cookie.json
         case _commit
             find . -type f -size +20M | cut -c 3- > .gitignore
@@ -156,6 +156,7 @@ function restud
                     return 1
                 end
                 restud _community_accept
+                # if failed notifiy the user.
             else
                 echo \n\n\n"Already part of REStud community!"\n\n\n
             end
@@ -163,7 +164,7 @@ function restud
             restud _get_id
             restud _get_key
             set url "https://zenodo.org/api/records/$ZENODO_ID/requests"
-            curl "$url?access_token=$ZENODO_API_KEY" | jq --arg zendod_id $ZENODO_ID '.hits.hits[].links.actions.accept' > .accept_request
+            curl "$url?access_token=$ZENODO_API_KEY" | jq --arg zendod_id $ZENODO_ID '.hits.hits[].links.actions.accept' > .accept_request # TODO: filter for restud community
         case _community_accept 
             restud _get_accept_request
             set url (head .accept_request | string replace \" "" -a)
