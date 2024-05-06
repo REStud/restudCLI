@@ -109,14 +109,14 @@ function restud
             if not test -f ~/.config/restud/restud-cookie.json
                 restud _create_cookie
             end
-            set -x expr_dt (jq .exp_date ~/.config/restud/restud-cookie.json | string replace \" "" -a)
-            set -x today (date -I) 
-            if not test (date -d $expr_dt +%s) -gt (date -d $today +%s)
+            set -x expr_dt (jq .exp_date ~/.config/restud/restud-cookie.json | string replace \" "" -a | string replace - "" -a)
+            set -x today (date -I | string replace - "" -a) 
+            if test $today -gt $expr_dt
                 restud _create_cookie
             end
             set -gx cookie_value (jq .value ~/.config/restud/restud-cookie.json | string replace \" "" -a)
         case _create_cookie
-            echo \n\n\n"Your restud cookie either does not exist or expired, to download preview records you need to create a new one!"\n\n\n
+            echo \n\n\n"Your restud cookie either does not exist or expired, to download preview records or to make community related actions you need to create a new one!"\n\n\n
             read -P "Do you want to create a new one into ~/.config/restud/restud-cookie.json? (y/n)" -n 1 -x confirm
             if test $confirm != "y"
                     return 1
