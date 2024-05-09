@@ -152,13 +152,23 @@ function restud
             else
                 echo \n\n\n"Already part of REStud community!"\n\n\n
             end
-        case _get_accept_request
+        case _get_accept_request_record
             restud _get_id
             restud _get_key
             set url "https://zenodo.org/api/records/$ZENODO_ID/requests"
-            curl "$url?access_token=$ZENODO_API_KEY" | jq --arg zendod_id $ZENODO_ID '.hits.hits[].links.actions.accept' > .accept_request
+            curl "$url?access_token=$ZENODO_API_KEY" | jq '.hits.hits[].links.actions.accept' > .accept_request
+        case _get_accept_request_deposit
+            restud _get_id
+            restud _get_key
+            set url "https://zenodo.org/api/communities/451be469-757a-4121-8792-af8ffc4461fb/requests?size=50&is_open=true"
+            curl "$url&access_token=$ZENODO_API_KEY" | jq --arg zenodo_id $ZENODO_ID '.hits.hits[] | select(.topic.record == $zenodo_id)' | jq '.links.actions.accept' > .accept_request
         case _community_accept 
-            restud _get_accept_request
+            read -P "Replication package of $ZENODO_ID is a record? (y/n)" -n 1 -x record
+            if test $record = "y"
+                restud _get_accept_request_record
+            else
+                restud _get_accept_request_deposit
+            end
             set url (head .accept_request | string replace \" "" -a)
             curl -X POST "$url?access_token=$ZENODO_API_KEY"
             rm .accept_request
