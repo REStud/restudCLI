@@ -31,6 +31,7 @@ function restud
                 git pull
             end
             restud _get_latest_version
+            git switch version$v
         case revise
             set branch_name (git symbolic-ref --short HEAD)
             if test "$branch_name" = "version1"
