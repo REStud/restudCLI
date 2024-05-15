@@ -141,6 +141,7 @@ function restud
             end
         case _get_id
             set -gx ZENODO_ID (head .zenodo | grep -o -E '/[0-9]+/' | string replace / "" -a)
+            set -gx is_zenodo_record (string match --no-empty -q -r 'upload' (head -n 1 .zenodo); or echo $status)
         case _check_community
             restud _get_id
             if test -z (curl -i "https://zenodo.org/api/records/$ZENODO_ID/communities" | grep 'restud-replication')
@@ -164,8 +165,7 @@ function restud
             set url "https://zenodo.org/api/communities/451be469-757a-4121-8792-af8ffc4461fb/requests?size=50&is_open=true"
             curl "$url&access_token=$ZENODO_API_KEY" | jq --arg zenodo_id $ZENODO_ID '.hits.hits[] | select(.topic.record == $zenodo_id)' | jq '.links.actions.accept' > .accept_request
         case _community_accept 
-            read -P "Replication package of $ZENODO_ID is a record? (y/n)" -n 1 -x record
-            if test $record = "y"
+            if test $is_zenodo_record
                 restud _get_accept_request_record
             else
                 restud _get_accept_request_deposit
