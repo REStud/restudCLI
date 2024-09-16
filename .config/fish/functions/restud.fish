@@ -86,6 +86,7 @@ function restud
                 restud _get_latest_version
                 set -gx v (math $v + 1)
                 git checkout -b version$v
+                touch report.yaml
             end
             restud _save_id
         case report $argv[2]
