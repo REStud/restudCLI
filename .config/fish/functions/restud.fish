@@ -90,7 +90,14 @@ function restud
             end
             restud _save_id
         case report $argv[2]
-            git add report.yaml
+            set branch_name (git symbolic-ref --short HEAD)
+            if test "$branch_name" = "version1"
+                set email_template $RESTUD/response1.txt
+            else
+                set email_template $RESTUD/response2.txt
+            end
+            python $RESTUD/render.py $email_template report.yaml $RESTUD/template.yaml > response.txt
+            git add report.yaml response.txt
             git commit -m "update report"
             git push origin $argv[2]
         # private functions not exposed to end user
