@@ -79,6 +79,7 @@ function restud
                 git commit -m "initial commit from zenodo $argv[2]"
                 git push origin author --set-upstream
                 git checkout -b version1
+                touch report.yaml
             else
                 echo 'there is other branch than author'
                 git commit -m "update to zenodo version $argv[2]"
@@ -128,7 +129,7 @@ function restud
             echo \n\n\n"Your restud cookie either does not exist or expired, to download preview records or to make community related actions you need to create a new one!"\n\n\n
             read -P "Do you want to create a new one into ~/.config/restud/restud-cookie.json? (y/n)" -n 1 -x confirm
             if test $confirm != "y"
-                    return 1
+                return 1
             end
             echo "\n\n\nTo create a new cookie you need two values. The zenodo session cookie value and expiration date. \n You can access them by opening zenodo.org, logging in and then access the developer tools panel. You can open it by F12/ctrl+shift+i or through settings/more tools/developer tools. Then look for Application sheet in the developer tools, in that sheet look for Storage/Cookies. It should list all active cookies for the page, there you need the cookie named session.\n\n\n"
             read -P "Please copy cookie value: " -x value
