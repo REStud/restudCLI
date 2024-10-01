@@ -75,7 +75,7 @@ function restud
             restud _commit
             set _branches (git branch -a | grep -v 'author')
             if test "$_branches" = ""
-                echo 'there is no  other branch than author'
+                echo 'there is no other branch than author'
                 git commit -m "initial commit from zenodo $argv[2]"
                 git push origin author --set-upstream
                 git checkout -b version1

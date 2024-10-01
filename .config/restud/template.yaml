@@ -13,5 +13,4 @@ tags:
   - &requirements Please describe the computational requirements for running your package. See https://social-science-data-editors.github.io/template_README/template-README.html#computational-requirements for explanation and examples.
   - &fortran Describe in the README how the Fortran code can be compiled and what other libraries are needed.
   - &instruments Please include all experiment or survey documentation in the package. This applies to experimental instructions, a human readable version of the survey, and the explanation in the README about the sample selection and the data collection process. See Rule 10 in https://datacodestandard.org/
- 
-    
+  - &data_manipulation Please include all data manipulation code you used in creating the analysis dataframe.
