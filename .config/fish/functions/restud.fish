@@ -45,8 +45,6 @@ function restud
             git commit -m "edit report"
             git push
         case accept
-            git tag accepted
-            git push --tags
             set branch_name (git symbolic-ref --short HEAD)
             if test "$branch_name" = "version1"
                 set email_template $RESTUD/accept1.txt
@@ -55,6 +53,10 @@ function restud
             end
             python $RESTUD/render.py $email_template report.yaml $RESTUD/template.yaml > accept.txt
             pbcopy < accept.txt
+            git add accept.txt
+            git commit -m "acceptance message"
+            git tag accepted
+            git push --tags
             restud _check_community
         case new
            mkdir $argv[2] 
