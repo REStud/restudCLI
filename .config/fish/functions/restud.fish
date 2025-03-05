@@ -75,6 +75,7 @@ function restud
                 restud _download_zenodo "$argv[2]"
             end
             restud _commit
+            restud _check_for_files
             set _branches (git branch -a | grep -v 'author')
             if test "$_branches" = ""
                 echo 'there is no other branch than author'
@@ -183,5 +184,17 @@ function restud
             rm .accept_request
         case _get_latest_version
             set -gx v (git branch -r | grep 'version' | grep -o -E '[0-9]+' | tail -1 )
+        case _check_for_files
+            set files (find ./ -size 0)
+            if test (count $files) -gt 0
+                echo "Total empty files: "(count $files)
+                echo "Empty files: "(echo $files)
+                read -P "Interrupt? (y/n)" -n 1 -x confirm
+                if test $confirm != "n"
+                    return 1
+                end
+            else
+                echo "No empty files"
+            end
     end
 end
