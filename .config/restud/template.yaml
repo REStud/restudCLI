@@ -14,3 +14,4 @@ tags:
   - &fortran Describe in the README how the Fortran code can be compiled and what other libraries are needed.
   - &instruments Please include all experiment or survey documentation in the package. This applies to experimental instructions, a human readable version of the survey, and the explanation in the README about the sample selection and the data collection process. See Rule 10 in https://datacodestandard.org/
   - &data_manipulation Please include all data manipulation code you used in creating the analysis dataframe.
+  - &tresorit_upload We appreciate if you can share your confidential/proprietary data with us for replication purposes. Please use the following link for sharing the files (tresorit data upload link).
