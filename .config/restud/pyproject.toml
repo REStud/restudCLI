@@ -6,8 +6,9 @@ authors = ["Miklós Koren <koren@localhost>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.6"
+python = ">=3.9"
 PyYAML = "^6.0.1"
+pydantic = "^2.10.6"
 
 
 [build-system]
