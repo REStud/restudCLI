@@ -1,0 +1,9 @@
+author: Jesse M Cunha, Giacomo De Giorgi, Seema Jayachandran
+salutation: Jesse
+email: jcunha@nps.edu
+title: The Price Effects of Cash Versus In-Kind Transfers
+praise: 
+requests:
+  - *cite_data
+recommendations:
+  - Please use case sensitive path names as Unix systems are case sensitive.

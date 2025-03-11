@@ -21,11 +21,11 @@ class DCASRuleItem(BaseModel):
     exemption_reason: Optional[str] = None
 
 
-class DCASTemplate(BaseModel):
-    author: Optional[str] = None
-    salutation: Optional[str] = None
-    email: Optional[str] = None
-    title: Optional[str] = None
+class ReportTemplate(BaseModel):
+    author: str
+    salutation: str
+    email: str
+    title: str
     praise: Optional[str] = None
     requests: Optional[Union[List[str], str]] = []
     recommendations: Optional[Union[List[str], str]] = []
@@ -38,7 +38,7 @@ class DCASTemplate(BaseModel):
         if v is None:
             return []
         return v
-    
+
     @classmethod
     def from_yaml(cls, yaml_file_path: str) -> "DCASTemplate":
         """Load DCAS template from a YAML file"""
@@ -46,19 +46,14 @@ class DCASTemplate(BaseModel):
             data = yaml.safe_load(file)
         return cls.model_validate(data)
     
-    def to_yaml(self, yaml_file_path: str) -> None:
-        """Save DCAS template to a YAML file"""
-        with open(yaml_file_path, "w", encoding='utf-8') as file:
-            yaml.dump(self.model_dump(), file, sort_keys=False)
-    
     def to_template_format(self) -> Dict[str, Any]:
         """Convert the template to a format compatible with the report generation system"""
         # Basic fields
         result = {
-            "author": self.author or "",
-            "salutation": self.salutation or "",
-            "email": self.email or "",
-            "title": self.title or "",
+            "author": self.author,
+            "salutation": self.salutation,
+            "email": self.email,
+            "title": self.title,
             "praise": self.praise or "",
             "requests": self.requests or [],
             "recommendations": self.recommendations or [],
@@ -82,27 +77,6 @@ class DCASTemplate(BaseModel):
             result["tags"] = self.tags
             
         return result
-
-
-class TagsLibrary(BaseModel):
-    tags: Dict[str, str]
-    
-    @classmethod
-    def from_yaml(cls, yaml_file_path: str) -> "TagsLibrary":
-        """Load tags from a YAML file"""
-        with open(yaml_file_path, "r", encoding='utf-8') as file:
-            data = yaml.safe_load(file)
-            
-            # Process the YAML anchors into a dictionary
-            tags_dict = {}
-            for item in data.get('tags', []):
-                if isinstance(item, str) and item.startswith('&'):
-                    # This is an anchor, but we don't have its value directly
-                    tag_name = item[1:]  # Remove the '&'
-                    tags_dict[tag_name] = "Tag value not available in raw format"
-            
-            return cls(tags=tags_dict)
-
 
 def ordered_list(list_items):
     """Format a list as an ordered list with numbers"""
@@ -147,29 +121,22 @@ def singulars_and_plurals(template, content):
     return template
 
 
-def generate_report(template_path, dcas_path, constants_path=None):
+def generate_report(template_path, report_path, tags_path, dcas_path):
     """Generate a report from template and DCAS files"""
     # Read template
     with open(template_path, 'rt', encoding='utf-8') as f:
         template_text = f.read()
     
+    content = yaml.load(
+        open(tags_path, 'rt', encoding='utf-8').read() + '\n' +       
+        open(report_path, 'rt', encoding='utf-8').read() + '\n' +
+        open(dcas_path, 'rt', encoding='utf-8').read(),
+        Loader=yaml.Loader
+    )
     # Load DCAS template
-    dcas_template = DCASTemplate.from_yaml(dcas_path)
-    
-    # Load constants if provided
-    constants = {}
-    if constants_path:
-        with open(constants_path, 'rt', encoding='utf-8') as f:
-            constants = yaml.safe_load(f)
-    
+    report = ReportTemplate.from_yaml(content)    
     # Get content from DCASTemplate
-    content = dcas_template.to_template_format()
-    
-    # Merge with constants
-    for key, value in constants.items():
-        if key not in content:
-            content[key] = value
-    
+    content = report.to_template_format()    
     # Parse content
     parsed_content = {k: parse(content[k]) for k in content}
     
@@ -182,15 +149,16 @@ def generate_report(template_path, dcas_path, constants_path=None):
 
 def main():
     """Main function to run the script"""
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 5:
         print("Usage: python script.py template_file dcas_file [constants_file]")
         sys.exit(1)
     
     template_path = sys.argv[1]
-    dcas_path = sys.argv[2]
-    constants_path = sys.argv[3] if len(sys.argv) > 3 else None
-    
-    report = generate_report(template_path, dcas_path, constants_path)
+    report_path = sys.argv[2]
+    dcas_path = sys.argv[3]
+    answers_path = sys.argv[4] 
+
+    report = generate_report(template_path, dcas_path, answers_path, dcas_path)
     print(report)
 
 

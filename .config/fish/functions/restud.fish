@@ -39,7 +39,7 @@ function restud
             else
                 set email_template $RESTUD/response2.txt
             end
-            python $RESTUD/render.py $email_template report.yaml $RESTUD/template.yaml > response.txt
+            python $RESTUD/render.py $email_template report.yaml $RESTUD/template-answers.yaml > response.txt
             pbcopy < response.txt
             git add report.yaml response.txt
             git commit -m "edit report"
@@ -51,7 +51,7 @@ function restud
             else
                 set email_template $RESTUD/accept2.txt
             end
-            python $RESTUD/render.py $email_template report.yaml $RESTUD/template.yaml > accept.txt
+            python $RESTUD/render.py $email_template report.yaml $RESTUD/template-answers.yaml > accept.txt
             pbcopy < accept.txt
             git add accept.txt
             git commit -m "acceptance message"
@@ -82,7 +82,7 @@ function restud
                 git commit -m "initial commit from zenodo $argv[2]"
                 git push origin author --set-upstream
                 git checkout -b version1
-                cp $RESTUD/report-template.yaml report.yaml
+                cp $RESTUD/report-template-answers.yaml report.yaml
             else
                 echo 'there is other branch than author'
                 git commit -m "update to zenodo version $argv[2]"
@@ -100,7 +100,7 @@ function restud
             else
                 set email_template $RESTUD/response2.txt
             end
-            python $RESTUD/render.py $email_template report.yaml $RESTUD/template.yaml > response.txt
+            python $RESTUD/render.py $email_template report.yaml $RESTUD/template-answers.yaml > response.txt
             git add report.yaml response.txt
             git commit -m "update report"
             git push origin $argv[2]

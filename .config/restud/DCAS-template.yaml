@@ -1,0 +1,13 @@
+DCAS_rules:
+  - section: Data
+    item: DAS
+    answer: 
+    description: "A Data Availability Statement is provided with detailed enough information such that an independent researcher can replicate the steps needed to access the original data, including any limitations and the expected monetary and time cost of data access." 
+    order: 1
+    exemption_reason:
+  - section: Data
+    item: Raw Data
+    answer: 
+    description: "Raw data used in the research (primary data collected by the author and secondary data not otherwise available) is made publicly accessible. Exceptions are explained under Rule 1." 
+    order: 2
+    exemption_reason:
