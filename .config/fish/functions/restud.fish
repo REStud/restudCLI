@@ -82,7 +82,7 @@ function restud
                 git commit -m "initial commit from zenodo $argv[2]"
                 git push origin author --set-upstream
                 git checkout -b version1
-                cp $RESTUD/report-template-answers.yaml report.yaml
+                cp $RESTUD/report-template.yaml report.yaml
             else
                 echo 'there is other branch than author'
                 git commit -m "update to zenodo version $argv[2]"
