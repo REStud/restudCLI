@@ -19,6 +19,7 @@ class DCASRuleItem(BaseModel):
     dcas_reference: str 
 
 class ReportTemplate(BaseModel):
+    version: int
     author: str
     salutation: str
     email: str
@@ -44,6 +45,7 @@ class ReportTemplate(BaseModel):
         """Convert the template to a format compatible with the report generation system"""
         # Basic fields
         result = {
+            "version": self.version, 
             "author": self.author,
             "salutation": self.salutation,
             "email": self.email,
@@ -129,17 +131,20 @@ def generate_report(template_path, report_path, tags_path):
         Loader=yaml.Loader
     )
 
-    # Load into DCAS template
-    report = ReportTemplate.from_dict(content)    
-    # Get content from DCASTemplate
-    content = report.to_template_format()    
-    # Parse content
-    parsed_content = {k: parse(content[k]) for k in content}
-    
-    # Apply singular/plural rules
-    template_text = singulars_and_plurals(template_text, content)
-    
-    # Format the template
+    if content.get("version") == 2:
+        # Load into DCAS template
+        report = ReportTemplate.from_dict(content)    
+        # Get content from DCASTemplate
+        content = report.to_template_format()    
+        # Parse content
+        parsed_content = {k: parse(content[k]) for k in content}
+        # Apply singular/plural rules
+        template_text = singulars_and_plurals(template_text, content)
+        # Format the template
+    else:
+        parsed_content = {k: parse(content[k]) for k in content}
+        template_text = singulars_and_plurals(template_text, content)
+
     return template_text.format(**parsed_content)
 
 
