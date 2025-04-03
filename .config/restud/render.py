@@ -12,7 +12,14 @@ class ResponseType(str, Enum):
     NA = "na"
 
 
-class DCASRuleItem(BaseModel):
+class DCASRuleItemV2(BaseModel):
+    description: str
+    answer: ResponseType
+    comment: Optional[Union[List[str], str]] = None
+    dcas_reference: str 
+
+class DCASRuleItemV3(BaseModel):
+    name: str
     description: str
     answer: ResponseType
     comment: Optional[Union[List[str], str]] = None
@@ -25,7 +32,7 @@ class ReportTemplate(BaseModel):
     email: str
     title: str
     praise: Optional[str] = None
-    DCAS_rules: List[DCASRuleItem]
+    DCAS_rules: List[Union[DCASRuleItemV2, DCASRuleItemV3]]
     recommendations: Optional[Union[List[str], str]] = []
     tags: List[str]
     
@@ -131,7 +138,7 @@ def generate_report(template_path, report_path, tags_path):
         Loader=yaml.Loader
     )
 
-    if content.get("version") == 2:
+    if content.get("version") >= 2:
         # Load into DCAS template
         report = ReportTemplate.from_dict(content)    
         # Get content from DCASTemplate
