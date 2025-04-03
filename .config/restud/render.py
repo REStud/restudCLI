@@ -2,6 +2,7 @@ from enum import Enum
 from typing import Dict, List, Optional, Union, Any
 import sys
 import yaml
+from yamlcore import CoreLoader
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -135,7 +136,7 @@ def generate_report(template_path, report_path, tags_path):
     content = yaml.load(
         open(tags_path, 'rt', encoding='utf-8').read() + '\n' +       
         open(report_path, 'rt', encoding='utf-8').read(),
-        Loader=yaml.Loader
+        Loader=CoreLoader
     )
 
     if content.get("version") >= 2:

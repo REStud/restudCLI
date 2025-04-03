@@ -216,7 +216,21 @@ files = [
     {file = "typing_extensions-4.12.2.tar.gz", hash = "sha256:1a7ead55c7e559dd4dee8856e3a88b41225abfe1ce8df57b7c13915fe121ffb8"},
 ]
 
+[[package]]
+name = "yamlcore"
+version = "0.0.4"
+description = "YAML 1.2 Support for PyYAML"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "yamlcore-0.0.4-py3-none-any.whl", hash = "sha256:f82a7f7d16baf6531a8c3266b0b63ece251ee2abaf2b9eee040a2f64c8fc618d"},
+    {file = "yamlcore-0.0.4.tar.gz", hash = "sha256:c2b1a08dd117cf76a70ee124e936b3c568b0b5c4e5131e69b513f4a877a44881"},
+]
+
+[package.dependencies]
+PyYAML = "*"
+
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9"
-content-hash = "ec7eca261dee07dbfc3f953880d0f5a70965c049e16722c51d4dedbfb500ffd3"
+content-hash = "4dd275256ca034a4d8de846dd22ce7fb2540f993988a6ba6db26034cfea26e49"

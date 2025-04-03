@@ -9,6 +9,7 @@ readme = "README.md"
 python = ">=3.9"
 PyYAML = "^6.0.1"
 pydantic = "^2.10.6"
+yamlcore = "^0.0.4"
 
 
 [build-system]
