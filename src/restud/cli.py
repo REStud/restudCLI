@@ -23,6 +23,9 @@ from rich.console import Console
 from rich.prompt import Prompt
 from rich.panel import Panel
 from rich.text import Text
+from prompt_toolkit import prompt
+from prompt_toolkit.history import InMemoryHistory
+from prompt_toolkit.formatted_text import HTML
 
 from .render import generate_report, ReportTemplate
 
@@ -124,6 +127,27 @@ def create_shell_prompt():
     
     # Join with spaces and add the prompt symbol
     return " ".join(prompt_parts) + " [bold]>[/bold] "
+
+
+def rich_to_html_prompt(rich_markup):
+    """Convert rich markup to HTML for prompt-toolkit."""
+    # Simple conversion for basic rich markup to HTML
+    html = rich_markup
+    html = html.replace("[bold blue]", '<ansiblue><b>')
+    html = html.replace("[/bold blue]", '</b></ansiblue>')
+    html = html.replace("[yellow]", '<ansiyellow>')
+    html = html.replace("[/yellow]", '</ansiyellow>')
+    html = html.replace("[green]", '<ansigreen>')
+    html = html.replace("[/green]", '</ansigreen>')
+    html = html.replace("[red]", '<ansired>')
+    html = html.replace("[/red]", '</ansired>')
+    html = html.replace("[bold green]", '<ansigreen><b>')
+    html = html.replace("[/bold green]", '</b></ansigreen>')
+    html = html.replace("[dim]", '<ansiblack>')
+    html = html.replace("[/dim]", '</ansiblack>')
+    html = html.replace("[bold]", '<b>')
+    html = html.replace("[/bold]", '</b>')
+    return html
 
 
 @click.group()
@@ -320,20 +344,26 @@ def shell(ctx):
     welcome_text = Text()
     welcome_text.append("REStud Interactive Shell", style="bold blue")
     welcome_text.append("\nType 'exit' to quit, 'help' for available commands", style="dim")
+    welcome_text.append("\nArrow keys and command history are supported", style="dim")
     
     console.print(Panel(welcome_text, border_style="blue"))
     
     # Available commands for completion
     restud_commands = [cmd.name for cmd in cli.commands.values() if cmd.name != 'shell']
     
+    # Create command history
+    history = InMemoryHistory()
+    
     while True:
         try:
             # Create dynamic prompt with status indicators
             prompt_text = create_shell_prompt()
-            command = Prompt.ask(
-                prompt_text,
-                console=console,
-                show_default=False
+            html_prompt = rich_to_html_prompt(prompt_text)
+            
+            # Use prompt-toolkit for readline support
+            command = prompt(
+                HTML(html_prompt),
+                history=history
             ).strip()
             
             if not command:
