@@ -39,12 +39,18 @@ restud shell
 ```
 
 Features:
-- **Styled prompts** with syntax highlighting
+- **Smart prompt** showing current folder and git branch
+- **Report status indicators**:
+  - `report` (green) - all DCAS rules are "yes" or "na"
+  - `report` (red) - some DCAS rules need attention
+  - `accepted` (bold green) - if git tag "accepted" exists
 - **REStud commands** work directly: `pull mypackage`, `revise`, `accept`, etc.
 - **Shell passthrough** for non-REStud commands
 - **Built-in help** with `help` command
 - **Colored output** for better readability
 - Type `exit` to quit
+
+Example prompt: `workflow (experiment) report > `
 
 ## Usage
 Create a repository for a new replication package 29123:

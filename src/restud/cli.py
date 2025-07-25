@@ -24,7 +24,7 @@ from rich.prompt import Prompt
 from rich.panel import Panel
 from rich.text import Text
 
-from .render import generate_report
+from .render import generate_report, ReportTemplate
 
 
 def get_template_path(filename):
@@ -37,6 +37,93 @@ def get_template_path(filename):
     except:
         # Fallback for development
         return os.path.join(os.path.dirname(__file__), 'templates', filename)
+
+
+def get_current_folder():
+    """Get the current folder name (last component)."""
+    return os.path.basename(os.getcwd())
+
+
+def get_git_branch():
+    """Get current git branch, if any."""
+    try:
+        result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], 
+                               capture_output=True, text=True, check=True)
+        return result.stdout.strip()
+    except:
+        return None
+
+
+def get_git_accepted_tag():
+    """Check if 'accepted' tag exists in the repo."""
+    try:
+        result = subprocess.run(['git', 'tag', '-l', 'accepted'], 
+                               capture_output=True, text=True, check=True)
+        return result.stdout.strip() == 'accepted'
+    except:
+        return False
+
+
+def get_report_status():
+    """Check report.yaml status if it exists."""
+    if not os.path.exists('report.yaml'):
+        return None
+    
+    try:
+        # Load report.yaml
+        with open('report.yaml', 'r', encoding='utf-8') as f:
+            content = yaml.safe_load(f)
+        
+        if not content or content.get('version', 1) < 2:
+            return "report"  # Old format, can't determine status
+            
+        # Check DCAS_rules
+        dcas_rules = content.get('DCAS_rules', [])
+        if not dcas_rules:
+            return "report"
+            
+        # Check if all rules are "yes" or "na"
+        all_good = True
+        for rule in dcas_rules:
+            answer = rule.get('answer', '').lower()
+            if answer not in ['yes', 'na']:
+                all_good = False
+                break
+                
+        return "good" if all_good else "issues"
+        
+    except Exception:
+        return "report"  # Error reading, just show basic status
+
+
+def create_shell_prompt():
+    """Create a rich shell prompt with status indicators."""
+    prompt_parts = []
+    
+    # Add folder name
+    folder = get_current_folder()
+    prompt_parts.append(f"[bold blue]{folder}[/bold blue]")
+    
+    # Add git branch if available
+    branch = get_git_branch()
+    if branch:
+        prompt_parts.append(f"[yellow]({branch})[/yellow]")
+    
+    # Add report status if report.yaml exists
+    report_status = get_report_status()
+    if report_status == "good":
+        prompt_parts.append("[green]report[/green]")
+    elif report_status == "issues":
+        prompt_parts.append("[red]report[/red]")
+    elif report_status == "report":
+        prompt_parts.append("[dim]report[/dim]")
+    
+    # Add accepted tag if it exists
+    if get_git_accepted_tag():
+        prompt_parts.append("[bold green]accepted[/bold green]")
+    
+    # Join with spaces and add the prompt symbol
+    return " ".join(prompt_parts) + " [bold]>[/bold] "
 
 
 @click.group()
@@ -241,9 +328,10 @@ def shell(ctx):
     
     while True:
         try:
-            # Use rich prompt with custom styling
+            # Create dynamic prompt with status indicators
+            prompt_text = create_shell_prompt()
             command = Prompt.ask(
-                "[bold blue]restud[/bold blue]",
+                prompt_text,
                 console=console,
                 show_default=False
             ).strip()
