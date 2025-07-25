@@ -4,9 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "restud"
-version = "0.1.0"
+version = "1.0.0"
 description = "REStud workflow management CLI tool"
-authors = [{name = "REStud Workflow", email = "workflow@restud.com"}]
+authors = [
+    {name = "Gergely Attila Kiss"},
+    {name = "Miklós Koren"},
+    {name = "Claude (Anthropic)"}
+]
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
