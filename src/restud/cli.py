@@ -247,6 +247,7 @@ def accept(ctx):
     _check_community(ctx)
 
 
+
 @cli.command()
 @click.argument('package_name')
 @click.pass_context
@@ -660,15 +661,20 @@ def _check_community(ctx):
 def _community_accept(zenodo_id):
     """Accept package into REStud community."""
     api_key = _get_zenodo_key()
-    
-    # Get accept request URL (simplified version)
-    url = f"https://zenodo.org/api/records/{zenodo_id}/requests"
-    response = requests.get(f"{url}?access_token={api_key}")
-    
-    # This is a simplified implementation - the original fish function
-    # has more complex logic for finding the accept URL
-    click.echo("Community acceptance functionality needs manual implementation")
 
+    cookie_value = _get_cookie()
+    headers = {'Cookie': f'session={cookie_value}'}
+    
+    url = _get_accept_request(zenodo_id, api_key, headers)
+    requests.post(f"{url}?access_token={api_key}", headers=headers)
+
+def _get_accept_request(zenodo_id, api_key, headers):
+    """Get the acceptance request URL for a Zenodo record."""
+    url = f"https://zenodo.org/api/communities/451be469-757a-4121-8792-af8ffc4461fb/requests?size=50&is_open=true&access_token={api_key}"
+    response = requests.get(url, headers=headers)
+    requests_data = response.json()
+    link = [item['links']['actions']['accept'] for item in requests_data['hits']['hits'] if item['topic']['record'] == zenodo_id]
+    return link[0]
 
 def main():
     """Main entry point."""
