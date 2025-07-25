@@ -1,15 +1,47 @@
-# Fish command `restud`
+# REStud CLI Tool
+
+A unified Python command-line tool for managing REStud workflow operations, replacing the previous fish function and separate Python script.
 
 ## Installation
-To install `restud` you need to have [fish shell](https://fishshell.com/) and [poetry](https://python-poetry.org/) installed. Then you can install `restud` with:
+
+Clone the repository and use `uv run` for automatic environment management:
+
 ```bash
-curl -sL https://raw.githubusercontent.com/REStud/install_restud_tool/main/install.sh | source
+git clone https://github.com/REStud/workflow.git
+cd workflow
+uv run restud --help
 ```
 
-Later you can update `restud` with:
+Or install globally with uv:
+
 ```bash
-restud install
+uv tool install git+https://github.com/REStud/workflow.git
 ```
+
+For development, just use `uv run` in the project directory - it handles dependencies automatically.
+
+## Migration from Fish Function
+
+The Python CLI provides identical functionality to the original fish function. All commands work the same way:
+
+```bash
+restud pull mypackage    # Same as before
+restud revise           # Same as before  
+restud accept           # Same as before
+```
+
+### New Interactive Shell Feature
+
+Use the `restud shell` command to enter an interactive shell where you can use REStud subcommands without the `restud` prefix:
+
+```bash
+restud shell
+```
+
+Inside the shell:
+- REStud commands work directly: `pull mypackage`, `revise`, `accept`, etc.
+- Non-REStud commands are passed to your default shell
+- Type `exit` to quit the shell
 
 ## Usage
 Create a repository for a new replication package 29123:

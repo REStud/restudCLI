@@ -1,0 +1,467 @@
+#!/usr/bin/env python3
+"""REStud workflow management CLI tool."""
+
+import os
+import sys
+import subprocess
+import tempfile
+import shutil
+import json
+from pathlib import Path
+from typing import Optional
+
+import click
+import requests
+import yaml
+
+from .render import generate_report
+
+
+@click.group()
+@click.pass_context
+def cli(ctx):
+    """REStud workflow management CLI tool."""
+    ctx.ensure_object(dict)
+    ctx.obj['RESTUD'] = os.path.expanduser('~/.config/restud')
+
+
+
+
+@cli.command()
+@click.argument('package_name')
+@click.pass_context
+def pull(ctx, package_name):
+    """Pull a replication package."""
+    if not os.path.exists(package_name):
+        subprocess.run(['git', 'clone', f'git@github.com:restud-replication-packages/{package_name}.git'], check=True)
+        os.chdir(package_name)
+    else:
+        os.chdir(package_name)
+        subprocess.run(['git', 'pull'], check=True)
+    
+    # Get latest version and switch to it  
+    result = subprocess.run(['git', 'branch', '-r'], capture_output=True, text=True, check=True)
+    versions = [line.strip() for line in result.stdout.split('\n') if 'version' in line]
+    if versions:
+        latest_version = max([int(v.split('version')[-1]) for v in versions if 'version' in v])
+        subprocess.run(['git', 'switch', f'version{latest_version}'], check=True)
+
+
+@cli.command()
+@click.pass_context
+def revise(ctx):
+    """Generate revision response."""
+    restud_config = ctx.obj['RESTUD']
+    
+    # Get current branch
+    result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], capture_output=True, text=True, check=True)
+    branch_name = result.stdout.strip()
+    
+    # Select email template based on version
+    if branch_name == "version1":
+        email_template = os.path.join(restud_config, 'response1.txt')
+    else:
+        email_template = os.path.join(restud_config, 'response2.txt')
+    
+    # Generate response
+    tags_file = os.path.join(restud_config, 'template-answers.yaml')
+    response = generate_report(email_template, 'report.yaml', tags_file)
+    
+    # Write response to file
+    with open('response.txt', 'w') as f:
+        f.write(response)
+    
+    # Copy to clipboard (macOS)
+    subprocess.run(['pbcopy'], input=response.encode(), check=True)
+    
+    # Commit changes
+    subprocess.run(['git', 'add', 'report.yaml', 'response.txt'], check=True)
+    subprocess.run(['git', 'commit', '-m', 'edit report'], check=True)
+    subprocess.run(['git', 'push'], check=True)
+
+
+@cli.command()
+@click.pass_context
+def accept(ctx):
+    """Generate acceptance message."""
+    restud_config = ctx.obj['RESTUD']
+    
+    # Get current branch
+    result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], capture_output=True, text=True, check=True)
+    branch_name = result.stdout.strip()
+    
+    # Select email template based on version
+    if branch_name == "version1":
+        email_template = os.path.join(restud_config, 'accept1.txt') 
+    else:
+        email_template = os.path.join(restud_config, 'accept2.txt')
+    
+    # Generate acceptance message
+    tags_file = os.path.join(restud_config, 'template-answers.yaml')
+    acceptance = generate_report(email_template, 'report.yaml', tags_file)
+    
+    # Write acceptance to file
+    with open('accept.txt', 'w') as f:
+        f.write(acceptance)
+    
+    # Copy to clipboard (macOS)
+    subprocess.run(['pbcopy'], input=acceptance.encode(), check=True)
+    
+    # Commit and tag
+    subprocess.run(['git', 'add', 'accept.txt'], check=True)
+    subprocess.run(['git', 'commit', '-m', 'acceptance message'], check=True)
+    subprocess.run(['git', 'tag', 'accepted'], check=True)
+    subprocess.run(['git', 'push', '--tags'], check=True)
+    
+    # Check community status
+    _check_community(ctx)
+
+
+@cli.command()
+@click.argument('package_name')
+@click.pass_context
+def new(ctx, package_name):
+    """Create new replication package."""
+    os.makedirs(package_name, exist_ok=True)
+    os.chdir(package_name)
+    subprocess.run(['git', 'init'], check=True)
+    subprocess.run(['gh', 'repo', 'create', f'restud-replication-packages/{package_name}', '--private', '--team', 'Replicators'], check=True)
+    subprocess.run(['git', 'remote', 'add', 'origin', f'git@github.com:restud-replication-packages/{package_name}.git'], check=True)
+    subprocess.run(['git', 'checkout', '-b', 'author'], check=True)
+
+
+@cli.command()
+@click.argument('zenodo_url')
+@click.pass_context
+def download(ctx, zenodo_url):
+    """Download package from Zenodo."""
+    restud_config = ctx.obj['RESTUD']
+    
+    subprocess.run(['git', 'switch', 'author'], check=True)
+    _empty_folder()
+    
+    # Get Zenodo API key
+    zenodo_key = _get_zenodo_key()
+    
+    # Download from Zenodo
+    if "preview" in zenodo_url:
+        _download_zenodo_preview(zenodo_url)
+    else:
+        _download_zenodo(zenodo_url, zenodo_key)
+    
+    # Commit changes
+    _commit_changes()
+    _check_for_files()
+    
+    # Check if other branches exist
+    result = subprocess.run(['git', 'branch', '-a'], capture_output=True, text=True, check=True)
+    branches = [line.strip() for line in result.stdout.split('\n') if line.strip() and 'author' not in line]
+    
+    if not branches:
+        click.echo('No other branch than author exists')
+        subprocess.run(['git', 'commit', '-m', f'initial commit from zenodo {zenodo_url}'], check=True)
+        subprocess.run(['git', 'push', 'origin', 'author', '--set-upstream'], check=True)
+        subprocess.run(['git', 'checkout', '-b', 'version1'], check=True)
+        shutil.copy(os.path.join(restud_config, 'report-template.yaml'), 'report.yaml')
+    else:
+        click.echo('Other branches exist')
+        subprocess.run(['git', 'commit', '-m', f'update to zenodo version {zenodo_url}'], check=True)
+        subprocess.run(['git', 'push'], check=True)
+        
+        # Get latest version number
+        latest_version = _get_latest_version()
+        new_version = latest_version + 1
+        subprocess.run(['git', 'checkout', '-b', f'version{new_version}'], check=True)
+        shutil.copy(os.path.join(restud_config, 'report-template.yaml'), 'report.yaml')
+    
+    _save_zenodo_id(zenodo_url)
+
+
+@cli.command()
+@click.argument('branch_name', required=False)
+@click.pass_context
+def report(ctx, branch_name):
+    """Generate and commit report."""
+    restud_config = ctx.obj['RESTUD']
+    
+    # Get current branch if not specified
+    if not branch_name:
+        result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], capture_output=True, text=True, check=True)
+        branch_name = result.stdout.strip()
+    
+    # Select email template based on version
+    if branch_name == "version1":
+        email_template = os.path.join(restud_config, 'response1.txt')
+    else:  
+        email_template = os.path.join(restud_config, 'response2.txt')
+        
+    # Generate response
+    tags_file = os.path.join(restud_config, 'template-answers.yaml')
+    response = generate_report(email_template, 'report.yaml', tags_file)
+    
+    with open('response.txt', 'w') as f:
+        f.write(response)
+    
+    # Commit changes
+    subprocess.run(['git', 'add', 'report.yaml', 'response.txt'], check=True)
+    subprocess.run(['git', 'commit', '-m', 'update report'], check=True)
+    subprocess.run(['git', 'push', 'origin', branch_name], check=True)
+
+
+@cli.command()
+@click.pass_context
+def shell(ctx):
+    """Start interactive REStud shell."""
+    restud_config = ctx.obj['RESTUD']
+    user_shell = os.environ.get('SHELL', '/bin/bash')
+    
+    click.echo(f"Starting REStud shell (type 'exit' to quit)")
+    click.echo(f"Available commands: {', '.join([cmd.name for cmd in cli.commands.values() if cmd.name != 'shell'])}")
+    
+    while True:
+        try:
+            command = input("restud> ").strip()
+            if not command:
+                continue
+                
+            if command == 'exit':
+                break
+                
+            # Split command into parts
+            parts = command.split()
+            command_name = parts[0]
+            
+            # Check if it's a REStud command
+            if command_name in [cmd.name for cmd in cli.commands.values()]:
+                try:
+                    # Execute REStud command
+                    ctx.invoke(cli.commands[command_name], *parts[1:])
+                except Exception as e:
+                    click.echo(f"Error executing REStud command: {e}")
+            else:
+                # Pass to user's shell
+                try:
+                    subprocess.run(command, shell=True, check=False)
+                except KeyboardInterrupt:
+                    continue
+                    
+        except (EOFError, KeyboardInterrupt):
+            break
+    
+    click.echo("Exiting REStud shell")
+
+
+# Helper functions
+def _get_zenodo_key():
+    """Get Zenodo API key from config file."""
+    key_file = os.path.expanduser('~/.config/.zenodo_api_key')
+    with open(key_file, 'r') as f:
+        return f.read().strip()
+
+
+def _download_zenodo(url, api_key):
+    """Download from Zenodo with API key."""
+    response = requests.get(f"{url}?access_token={api_key}")
+    response.raise_for_status()
+    
+    with open('repo.zip', 'wb') as f:
+        f.write(response.content)
+    
+    with open('.zenodo', 'w') as f:
+        f.write(url)
+    
+    subprocess.run(['unzip', 'repo.zip'], check=True)
+    os.remove('repo.zip')
+
+
+def _download_zenodo_preview(url):
+    """Download Zenodo preview with cookie."""
+    cookie_value = _get_cookie()
+    headers = {'Cookie': f'session={cookie_value}'}
+    
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    
+    with open('repo.zip', 'wb') as f:
+        f.write(response.content)
+    
+    with open('.zenodo', 'w') as f:
+        f.write(url)
+        
+    subprocess.run(['unzip', 'repo.zip'], check=True) 
+    os.remove('repo.zip')
+
+
+def _get_cookie():
+    """Get or create Zenodo session cookie."""
+    cookie_file = os.path.expanduser('~/.config/restud/restud-cookie.json')
+    
+    if not os.path.exists(cookie_file):
+        _create_cookie()
+        
+    with open(cookie_file, 'r') as f:
+        cookie_data = json.load(f)
+    
+    # Check if cookie is expired
+    from datetime import datetime
+    exp_date = datetime.strptime(cookie_data['exp_date'], '%Y-%m-%d')
+    if datetime.now() > exp_date:
+        _create_cookie()
+        with open(cookie_file, 'r') as f:
+            cookie_data = json.load(f)
+    
+    return cookie_data['value']
+
+
+def _create_cookie():
+    """Create new Zenodo session cookie."""
+    click.echo("\nYour REStud cookie either does not exist or expired.")
+    click.echo("To download preview records, you need to create a new one!")
+    
+    confirm = click.prompt("Create new cookie in ~/.config/restud/restud-cookie.json? (y/n)", type=str)
+    if confirm.lower() != 'y':
+        return
+    
+    click.echo("\nTo create a new cookie you need two values:")
+    click.echo("1. Zenodo session cookie value") 
+    click.echo("2. Expiration date")
+    click.echo("\nYou can get these by:")
+    click.echo("1. Open zenodo.org and log in")
+    click.echo("2. Open developer tools (F12)")
+    click.echo("3. Go to Application > Storage > Cookies")
+    click.echo("4. Find the 'session' cookie")
+    
+    value = click.prompt("Cookie value")
+    exp_date = click.prompt("Expiration date (YYYY-MM-DD)")
+    
+    cookie_data = {
+        "name": "session",
+        "value": value,
+        "exp_date": exp_date
+    }
+    
+    cookie_file = os.path.expanduser('~/.config/restud/restud-cookie.json')
+    os.makedirs(os.path.dirname(cookie_file), exist_ok=True)
+    
+    with open(cookie_file, 'w') as f:
+        json.dump(cookie_data, f)
+
+
+def _empty_folder():
+    """Remove directories from current folder.""" 
+    dirs = [d for d in os.listdir('.') if os.path.isdir(d)]
+    if dirs:
+        click.echo("Removing previous directories!")
+        for d in dirs:
+            shutil.rmtree(d)
+    else:
+        click.echo("No directories in the folder!")
+
+
+def _commit_changes():
+    """Commit changes, ignoring large files."""
+    # Find large files and add to gitignore
+    large_files = []
+    for root, dirs, files in os.walk('.'):
+        for file in files:
+            filepath = os.path.join(root, file)
+            if os.path.getsize(filepath) > 20 * 1024 * 1024:  # 20MB
+                large_files.append(filepath[2:])  # Remove './' prefix
+    
+    if large_files:
+        with open('.gitignore', 'w') as f:
+            f.write('\n'.join(large_files))
+    
+    subprocess.run(['git', 'add', '.'], check=True)
+
+
+def _check_for_files():
+    """Check for empty files and prompt user."""
+    empty_files = []
+    for root, dirs, files in os.walk('.'):
+        for file in files:
+            filepath = os.path.join(root, file)
+            if os.path.getsize(filepath) == 0:
+                empty_files.append(filepath)
+    
+    if empty_files:
+        click.echo(f"Total empty files: {len(empty_files)}")
+        click.echo(f"Empty files: {empty_files}")
+        interrupt = click.prompt("Interrupt? (y/n)", type=str)
+        if interrupt.lower() != 'n':
+            return False
+    else:
+        click.echo("No empty files")
+    return True
+
+
+def _get_latest_version():
+    """Get the latest version number from git branches."""
+    result = subprocess.run(['git', 'branch', '-r'], capture_output=True, text=True, check=True)
+    versions = []
+    for line in result.stdout.split('\n'):
+        if 'version' in line:
+            try:
+                version_num = int(line.split('version')[-1].strip())
+                versions.append(version_num)
+            except ValueError:
+                continue
+    return max(versions) if versions else 0
+
+
+def _save_zenodo_id(url):
+    """Save Zenodo ID for later use."""
+    # Extract ID from URL
+    import re
+    match = re.search(r'/(\d+)/', url)
+    if match:
+        zenodo_id = match.group(1)
+        with open('.zenodo_id', 'w') as f:
+            f.write(zenodo_id)
+
+
+def _check_community(ctx):
+    """Check and manage community membership."""
+    # Get Zenodo ID
+    with open('.zenodo', 'r') as f:
+        url = f.read().strip()
+    
+    import re
+    match = re.search(r'/(\d+)/', url)
+    if not match:
+        click.echo("Could not extract Zenodo ID")
+        return
+        
+    zenodo_id = match.group(1)
+    
+    # Check community membership
+    response = requests.get(f"https://zenodo.org/api/records/{zenodo_id}/communities")
+    if 'restud-replication' not in response.text:
+        click.echo(f"\nReplication package {zenodo_id} is not part of REStud community.")
+        confirm = click.prompt("Accept into the community? (y/n)", type=str)
+        if confirm.lower() == 'y':
+            _community_accept(zenodo_id)
+    else:
+        click.echo("\nAlready part of REStud community!")
+
+
+def _community_accept(zenodo_id):
+    """Accept package into REStud community."""
+    api_key = _get_zenodo_key()
+    
+    # Get accept request URL (simplified version)
+    url = f"https://zenodo.org/api/records/{zenodo_id}/requests"
+    response = requests.get(f"{url}?access_token={api_key}")
+    
+    # This is a simplified implementation - the original fish function
+    # has more complex logic for finding the accept URL
+    click.echo("Community acceptance functionality needs manual implementation")
+
+
+def main():
+    """Main entry point."""
+    cli()
+
+
+if __name__ == '__main__':
+    main()

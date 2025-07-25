@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "restud"
+version = "0.1.0"
+description = "REStud workflow management CLI tool"
+authors = [{name = "REStud Workflow", email = "workflow@restud.com"}]
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "click>=8.0.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0.0",
+    "yamlcore>=0.0.1",
+    "requests>=2.25.0",
+]
+
+[project.scripts]
+restud = "restud.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0.0",
+    "black>=22.0.0",
+    "flake8>=4.0.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/restud"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/README.md",
+]
