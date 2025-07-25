@@ -1,6 +1,6 @@
 # REStud CLI Tool
 
-A unified Python command-line tool for managing REStud workflow operations, replacing the previous fish function and separate Python script.
+A unified Python command-line tool for managing REStud workflow operations, replacing the previous fish function and separate Python script. All template files are included in the package installation - no separate configuration needed.
 
 ## Installation
 

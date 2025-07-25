@@ -10,6 +10,12 @@ import json
 from pathlib import Path
 from typing import Optional
 
+try:
+    from importlib.resources import files
+except ImportError:
+    # Fallback for Python < 3.9
+    from importlib_resources import files
+
 import click
 import requests
 import yaml
@@ -21,12 +27,23 @@ from rich.text import Text
 from .render import generate_report
 
 
+def get_template_path(filename):
+    """Get path to template file from package resources."""
+    try:
+        # Use importlib.resources for modern Python
+        template_files = files('restud.templates')
+        template_file = template_files / filename
+        return str(template_file)
+    except:
+        # Fallback for development
+        return os.path.join(os.path.dirname(__file__), 'templates', filename)
+
+
 @click.group()
 @click.pass_context
 def cli(ctx):
     """REStud workflow management CLI tool."""
     ctx.ensure_object(dict)
-    ctx.obj['RESTUD'] = os.path.expanduser('~/.config/restud')
 
 
 
@@ -55,20 +72,18 @@ def pull(ctx, package_name):
 @click.pass_context
 def revise(ctx):
     """Generate revision response."""
-    restud_config = ctx.obj['RESTUD']
-    
     # Get current branch
     result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], capture_output=True, text=True, check=True)
     branch_name = result.stdout.strip()
     
     # Select email template based on version
     if branch_name == "version1":
-        email_template = os.path.join(restud_config, 'response1.txt')
+        email_template = get_template_path('response1.txt')
     else:
-        email_template = os.path.join(restud_config, 'response2.txt')
+        email_template = get_template_path('response2.txt')
     
     # Generate response
-    tags_file = os.path.join(restud_config, 'template-answers.yaml')
+    tags_file = get_template_path('template-answers.yaml')
     response = generate_report(email_template, 'report.yaml', tags_file)
     
     # Write response to file
@@ -88,20 +103,18 @@ def revise(ctx):
 @click.pass_context
 def accept(ctx):
     """Generate acceptance message."""
-    restud_config = ctx.obj['RESTUD']
-    
     # Get current branch
     result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], capture_output=True, text=True, check=True)
     branch_name = result.stdout.strip()
     
     # Select email template based on version
     if branch_name == "version1":
-        email_template = os.path.join(restud_config, 'accept1.txt') 
+        email_template = get_template_path('accept1.txt') 
     else:
-        email_template = os.path.join(restud_config, 'accept2.txt')
+        email_template = get_template_path('accept2.txt')
     
     # Generate acceptance message
-    tags_file = os.path.join(restud_config, 'template-answers.yaml')
+    tags_file = get_template_path('template-answers.yaml')
     acceptance = generate_report(email_template, 'report.yaml', tags_file)
     
     # Write acceptance to file
@@ -139,7 +152,6 @@ def new(ctx, package_name):
 @click.pass_context
 def download(ctx, zenodo_url):
     """Download package from Zenodo."""
-    restud_config = ctx.obj['RESTUD']
     
     subprocess.run(['git', 'switch', 'author'], check=True)
     _empty_folder()
@@ -166,7 +178,7 @@ def download(ctx, zenodo_url):
         subprocess.run(['git', 'commit', '-m', f'initial commit from zenodo {zenodo_url}'], check=True)
         subprocess.run(['git', 'push', 'origin', 'author', '--set-upstream'], check=True)
         subprocess.run(['git', 'checkout', '-b', 'version1'], check=True)
-        shutil.copy(os.path.join(restud_config, 'report-template.yaml'), 'report.yaml')
+        shutil.copy(get_template_path('report-template.yaml'), 'report.yaml')
     else:
         click.echo('Other branches exist')
         subprocess.run(['git', 'commit', '-m', f'update to zenodo version {zenodo_url}'], check=True)
@@ -176,7 +188,7 @@ def download(ctx, zenodo_url):
         latest_version = _get_latest_version()
         new_version = latest_version + 1
         subprocess.run(['git', 'checkout', '-b', f'version{new_version}'], check=True)
-        shutil.copy(os.path.join(restud_config, 'report-template.yaml'), 'report.yaml')
+        shutil.copy(get_template_path('report-template.yaml'), 'report.yaml')
     
     _save_zenodo_id(zenodo_url)
 
@@ -186,8 +198,6 @@ def download(ctx, zenodo_url):
 @click.pass_context
 def report(ctx, branch_name):
     """Generate and commit report."""
-    restud_config = ctx.obj['RESTUD']
-    
     # Get current branch if not specified
     if not branch_name:
         result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], capture_output=True, text=True, check=True)
@@ -195,12 +205,12 @@ def report(ctx, branch_name):
     
     # Select email template based on version
     if branch_name == "version1":
-        email_template = os.path.join(restud_config, 'response1.txt')
+        email_template = get_template_path('response1.txt')
     else:  
-        email_template = os.path.join(restud_config, 'response2.txt')
+        email_template = get_template_path('response2.txt')
         
     # Generate response
-    tags_file = os.path.join(restud_config, 'template-answers.yaml')
+    tags_file = get_template_path('template-answers.yaml')
     response = generate_report(email_template, 'report.yaml', tags_file)
     
     with open('response.txt', 'w') as f:
@@ -217,7 +227,6 @@ def report(ctx, branch_name):
 def shell(ctx):
     """Start interactive REStud shell."""
     console = Console()
-    restud_config = ctx.obj['RESTUD']
     user_shell = os.environ.get('SHELL', '/bin/bash')
     
     # Welcome message
