@@ -46,6 +46,7 @@ Features:
   - `accepted` (bold green) - if git tag "accepted" exists
 - **Built-in cd command** that persists directory changes
 - **Arrow key support** with command history and editing
+- **Tab completion** for file and directory names
 - **REStud commands** work directly: `pull mypackage`, `revise`, `accept`, etc.
 - **Shell passthrough** for non-REStud commands
 - **Built-in help** with `help` command
