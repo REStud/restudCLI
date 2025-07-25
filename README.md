@@ -30,18 +30,21 @@ restud revise           # Same as before
 restud accept           # Same as before
 ```
 
-### New Interactive Shell Feature
+### Interactive Shell
 
-Use the `restud shell` command to enter an interactive shell where you can use REStud subcommands without the `restud` prefix:
+Use the `restud shell` command to enter a rich interactive shell:
 
 ```bash
 restud shell
 ```
 
-Inside the shell:
-- REStud commands work directly: `pull mypackage`, `revise`, `accept`, etc.
-- Non-REStud commands are passed to your default shell
-- Type `exit` to quit the shell
+Features:
+- **Styled prompts** with syntax highlighting
+- **REStud commands** work directly: `pull mypackage`, `revise`, `accept`, etc.
+- **Shell passthrough** for non-REStud commands
+- **Built-in help** with `help` command
+- **Colored output** for better readability
+- Type `exit` to quit
 
 ## Usage
 Create a repository for a new replication package 29123:

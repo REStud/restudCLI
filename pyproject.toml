@@ -15,6 +15,7 @@ dependencies = [
     "pyyaml>=6.0.0",
     "yamlcore>=0.0.1",
     "requests>=2.25.0",
+    "rich>=13.0.0",
 ]
 
 [project.scripts]

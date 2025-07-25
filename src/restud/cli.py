@@ -13,6 +13,10 @@ from typing import Optional
 import click
 import requests
 import yaml
+from rich.console import Console
+from rich.prompt import Prompt
+from rich.panel import Panel
+from rich.text import Text
 
 from .render import generate_report
 
@@ -212,43 +216,82 @@ def report(ctx, branch_name):
 @click.pass_context
 def shell(ctx):
     """Start interactive REStud shell."""
+    console = Console()
     restud_config = ctx.obj['RESTUD']
     user_shell = os.environ.get('SHELL', '/bin/bash')
     
-    click.echo(f"Starting REStud shell (type 'exit' to quit)")
-    click.echo(f"Available commands: {', '.join([cmd.name for cmd in cli.commands.values() if cmd.name != 'shell'])}")
+    # Welcome message
+    welcome_text = Text()
+    welcome_text.append("REStud Interactive Shell", style="bold blue")
+    welcome_text.append("\nType 'exit' to quit, 'help' for available commands", style="dim")
+    
+    console.print(Panel(welcome_text, border_style="blue"))
+    
+    # Available commands for completion
+    restud_commands = [cmd.name for cmd in cli.commands.values() if cmd.name != 'shell']
     
     while True:
         try:
-            command = input("restud> ").strip()
+            # Use rich prompt with custom styling
+            command = Prompt.ask(
+                "[bold blue]restud[/bold blue]",
+                console=console,
+                show_default=False
+            ).strip()
+            
             if not command:
                 continue
                 
             if command == 'exit':
                 break
+            
+            if command == 'help':
+                console.print(f"[bold]Available REStud commands:[/bold] {', '.join(restud_commands)}")
+                console.print("[dim]Other commands are passed to your shell[/dim]")
+                continue
                 
             # Split command into parts
             parts = command.split()
             command_name = parts[0]
             
             # Check if it's a REStud command
-            if command_name in [cmd.name for cmd in cli.commands.values()]:
+            if command_name in restud_commands:
                 try:
-                    # Execute REStud command
-                    ctx.invoke(cli.commands[command_name], *parts[1:])
+                    # Execute REStud command - need to parse arguments properly
+                    cmd = cli.commands[command_name]
+                    # Create a new context for the subcommand
+                    sub_ctx = click.Context(cmd, parent=ctx)
+                    
+                    # Parse arguments based on command signature
+                    if command_name == 'pull' and len(parts) > 1:
+                        ctx.invoke(cmd, package_name=parts[1])
+                    elif command_name == 'new' and len(parts) > 1:
+                        ctx.invoke(cmd, package_name=parts[1])
+                    elif command_name == 'download' and len(parts) > 1:
+                        ctx.invoke(cmd, zenodo_url=parts[1])
+                    elif command_name == 'report' and len(parts) > 1:
+                        ctx.invoke(cmd, branch_name=parts[1])
+                    elif command_name in ['revise', 'accept']:
+                        ctx.invoke(cmd)
+                    else:
+                        console.print(f"[yellow]Usage: {command_name} [arguments][/yellow]")
+                        
                 except Exception as e:
-                    click.echo(f"Error executing REStud command: {e}")
+                    console.print(f"[red]Error executing REStud command:[/red] {e}")
             else:
                 # Pass to user's shell
                 try:
-                    subprocess.run(command, shell=True, check=False)
+                    result = subprocess.run(command, shell=True, check=False)
+                    if result.returncode != 0 and result.returncode != 130:  # 130 is Ctrl+C
+                        console.print(f"[yellow]Command exited with code {result.returncode}[/yellow]")
                 except KeyboardInterrupt:
+                    console.print("[yellow]Interrupted[/yellow]")
                     continue
                     
         except (EOFError, KeyboardInterrupt):
             break
     
-    click.echo("Exiting REStud shell")
+    console.print("[blue]Exiting REStud shell[/blue]")
 
 
 # Helper functions
@@ -315,24 +358,31 @@ def _get_cookie():
 
 def _create_cookie():
     """Create new Zenodo session cookie."""
-    click.echo("\nYour REStud cookie either does not exist or expired.")
-    click.echo("To download preview records, you need to create a new one!")
+    console = Console()
     
-    confirm = click.prompt("Create new cookie in ~/.config/restud/restud-cookie.json? (y/n)", type=str)
+    console.print("\n[yellow]Your REStud cookie either does not exist or expired.[/yellow]")
+    console.print("To download preview records, you need to create a new one!")
+    
+    confirm = Prompt.ask("Create new cookie in ~/.config/restud/restud-cookie.json?", 
+                        choices=["y", "n"], default="n", console=console)
     if confirm.lower() != 'y':
         return
     
-    click.echo("\nTo create a new cookie you need two values:")
-    click.echo("1. Zenodo session cookie value") 
-    click.echo("2. Expiration date")
-    click.echo("\nYou can get these by:")
-    click.echo("1. Open zenodo.org and log in")
-    click.echo("2. Open developer tools (F12)")
-    click.echo("3. Go to Application > Storage > Cookies")
-    click.echo("4. Find the 'session' cookie")
+    # Instructions panel
+    instructions = Text()
+    instructions.append("To create a new cookie you need:\n", style="bold")
+    instructions.append("1. Zenodo session cookie value\n")
+    instructions.append("2. Expiration date\n\n")
+    instructions.append("Steps to get these:\n", style="bold")
+    instructions.append("1. Open zenodo.org and log in\n")
+    instructions.append("2. Open developer tools (F12)\n")
+    instructions.append("3. Go to Application > Storage > Cookies\n")
+    instructions.append("4. Find the 'session' cookie")
     
-    value = click.prompt("Cookie value")
-    exp_date = click.prompt("Expiration date (YYYY-MM-DD)")
+    console.print(Panel(instructions, title="Cookie Setup Instructions", border_style="green"))
+    
+    value = Prompt.ask("[bold]Cookie value[/bold]", console=console)
+    exp_date = Prompt.ask("[bold]Expiration date (YYYY-MM-DD)[/bold]", console=console)
     
     cookie_data = {
         "name": "session",
@@ -345,6 +395,8 @@ def _create_cookie():
     
     with open(cookie_file, 'w') as f:
         json.dump(cookie_data, f)
+    
+    console.print("[green]Cookie saved successfully![/green]")
 
 
 def _empty_folder():
@@ -377,6 +429,7 @@ def _commit_changes():
 
 def _check_for_files():
     """Check for empty files and prompt user."""
+    console = Console()
     empty_files = []
     for root, dirs, files in os.walk('.'):
         for file in files:
@@ -385,13 +438,13 @@ def _check_for_files():
                 empty_files.append(filepath)
     
     if empty_files:
-        click.echo(f"Total empty files: {len(empty_files)}")
-        click.echo(f"Empty files: {empty_files}")
-        interrupt = click.prompt("Interrupt? (y/n)", type=str)
+        console.print(f"[yellow]Total empty files: {len(empty_files)}[/yellow]")
+        console.print(f"[dim]Empty files: {empty_files}[/dim]")
+        interrupt = Prompt.ask("Interrupt?", choices=["y", "n"], default="n", console=console)
         if interrupt.lower() != 'n':
             return False
     else:
-        click.echo("No empty files")
+        console.print("[green]No empty files[/green]")
     return True
 
 
@@ -422,6 +475,8 @@ def _save_zenodo_id(url):
 
 def _check_community(ctx):
     """Check and manage community membership."""
+    console = Console()
+    
     # Get Zenodo ID
     with open('.zenodo', 'r') as f:
         url = f.read().strip()
@@ -429,7 +484,7 @@ def _check_community(ctx):
     import re
     match = re.search(r'/(\d+)/', url)
     if not match:
-        click.echo("Could not extract Zenodo ID")
+        console.print("[red]Could not extract Zenodo ID[/red]")
         return
         
     zenodo_id = match.group(1)
@@ -437,12 +492,12 @@ def _check_community(ctx):
     # Check community membership
     response = requests.get(f"https://zenodo.org/api/records/{zenodo_id}/communities")
     if 'restud-replication' not in response.text:
-        click.echo(f"\nReplication package {zenodo_id} is not part of REStud community.")
-        confirm = click.prompt("Accept into the community? (y/n)", type=str)
+        console.print(f"\n[yellow]Replication package {zenodo_id} is not part of REStud community.[/yellow]")
+        confirm = Prompt.ask("Accept into the community?", choices=["y", "n"], default="n", console=console)
         if confirm.lower() == 'y':
             _community_accept(zenodo_id)
     else:
-        click.echo("\nAlready part of REStud community!")
+        console.print("\n[green]Already part of REStud community![/green]")
 
 
 def _community_accept(zenodo_id):
