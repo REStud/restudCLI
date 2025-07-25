@@ -344,6 +344,7 @@ def shell(ctx):
             
             if command == 'help':
                 console.print(f"[bold]Available REStud commands:[/bold] {', '.join(restud_commands)}")
+                console.print("[bold]Built-in commands:[/bold] cd")
                 console.print("[dim]Other commands are passed to your shell[/dim]")
                 continue
                 
@@ -375,6 +376,26 @@ def shell(ctx):
                         
                 except Exception as e:
                     console.print(f"[red]Error executing REStud command:[/red] {e}")
+            elif command_name == 'cd':
+                # Special case for cd command - implement in Python
+                try:
+                    if len(parts) == 1:
+                        # cd with no arguments goes to home directory
+                        target_dir = os.path.expanduser('~')
+                    else:
+                        # cd with path argument
+                        target_dir = os.path.expanduser(parts[1])
+                    
+                    # Change directory
+                    os.chdir(target_dir)
+                    console.print(f"[dim]Changed to: {os.getcwd()}[/dim]")
+                    
+                except FileNotFoundError:
+                    console.print(f"[red]cd: no such file or directory: {parts[1] if len(parts) > 1 else '~'}[/red]")
+                except PermissionError:
+                    console.print(f"[red]cd: permission denied: {parts[1] if len(parts) > 1 else '~'}[/red]")
+                except Exception as e:
+                    console.print(f"[red]cd: {e}[/red]")
             else:
                 # Pass to user's shell
                 try:

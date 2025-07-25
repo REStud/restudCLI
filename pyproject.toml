@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "restud"
-version = "1.1.0"
+version = "1.1.1"
 description = "REStud workflow management CLI tool"
 authors = [
     {name = "Gergely Attila Kiss"},
