@@ -4,21 +4,21 @@ A unified Python command-line tool for managing REStud workflow operations, repl
 
 ## Installation
 
-Clone the repository and use `uv run` for automatic environment management:
+Install globally with uv:
 
 ```bash
-git clone https://github.com/REStud/workflow.git
+uv tool install git+ssh://git@github.com/REStud/workflow.git
+```
+
+Or clone the repository and use `uv run` for development:
+
+```bash
+git clone git@github.com:REStud/workflow.git
 cd workflow
 uv run restud --help
 ```
 
-Or install globally with uv:
-
-```bash
-uv tool install git+https://github.com/REStud/workflow.git
-```
-
-For development, just use `uv run` in the project directory - it handles dependencies automatically.
+For development, `uv run` handles dependencies automatically.
 
 ## Migration from Fish Function
 
