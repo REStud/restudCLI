@@ -85,15 +85,15 @@ def get_report_status():
         if not dcas_rules:
             return "report"
             
-        # Check if all rules are "yes" or "na"
-        all_good = True
+        # Check if any rules have "no" answers (issues)
+        has_issues = False
         for rule in dcas_rules:
             answer = rule.get('answer', '').lower()
-            if answer not in ['yes', 'na']:
-                all_good = False
+            if answer == 'no':
+                has_issues = True
                 break
                 
-        return "good" if all_good else "issues"
+        return "issues" if has_issues else "good"
         
     except Exception:
         return "report"  # Error reading, just show basic status

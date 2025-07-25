@@ -39,7 +39,13 @@ restud shell
 ```
 
 Features:
-- **Styled prompts** with syntax highlighting
+- **Smart prompt** showing current folder and git branch
+- **Report status indicators**:
+  - `report` (green) - no DCAS rules have "no" answers
+  - `report` (red) - at least one DCAS rule has "no" answer
+  - `accepted` (bold green) - if git tag "accepted" exists
+- **Built-in cd command** that persists directory changes
+- **Arrow key support** with command history and editing
 - **REStud commands** work directly: `pull mypackage`, `revise`, `accept`, etc.
 - **Shell passthrough** for non-REStud commands
 - **Built-in help** with `help` command
