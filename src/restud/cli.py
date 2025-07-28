@@ -563,7 +563,8 @@ def _empty_folder():
     if dirs:
         click.echo("Removing previous directories!")
         for d in dirs:
-            shutil.rmtree(d)
+            if d not in ['.git']:
+                shutil.rmtree(d)
     else:
         click.echo("No directories in the folder!")
 
