@@ -27,7 +27,7 @@ The Python CLI provides identical functionality to the original fish function. A
 ```bash
 restud pull mypackage    # Same as before
 restud revise           # Same as before  
-restud accept           # Same as before
+restud accept           # Now includes Zenodo community acceptance
 ```
 
 ### Interactive Shell
@@ -64,7 +64,7 @@ Download files from Zenodo URL https://zenodo.org/record/12345:
 ```bash
 restud download https://zenodo.org/record/12345
 ```
-Switches to branch author. Deletes all the files in the current directory. Downloads and unzips the files to the current directory. The large files are gitignored, the small ones are committed and pushed to `author` branch.
+Automatically switches to `author` branch if not already there. Deletes all the files in the current directory (except `.git`). Downloads and unzips the files to the current directory. The large files are gitignored, the small ones are committed and pushed to `author` branch.
 
 Commit the report:
 ```bash
@@ -83,11 +83,11 @@ restud revise
 ```
 This renders `response.txt` from `report.yaml` and copies it to the clipboard so that the data editor can paste it in the email to the author. Both files are committed and pushed to the respective `version` branch. This action stops the clock on the revision for the editorial team.
 
-Render the acceptance email:
+Render the acceptance email and accept into Zenodo community:
 ```bash
 restud accept
 ```
-This renders `accept.txt` from `report.yaml` and copies it to the clipboard so that the data editor can paste it in the email to the author. Both files are committed and pushed to the respective `version` branch. The commit is tagged `accepted` and the tag is pushed to GitHub. This action stops the clock for the editorial team.
+This renders `accept.txt` from `report.yaml` and copies it to the clipboard so that the data editor can paste it in the email to the author. Additionally, it automatically accepts the package into the REStud Zenodo community. Both files are committed and pushed to the respective `version` branch. The commit is tagged `accepted` and the tag is pushed to GitHub. This action stops the clock for the editorial team.
 
 If you need the Python environment for rendering the reports, you can create it with:
 ```bash
