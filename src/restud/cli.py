@@ -266,8 +266,11 @@ def new(ctx, package_name):
 @click.pass_context
 def download(ctx, zenodo_url):
     """Download package from Zenodo."""
+    branch = get_git_branch()
+    if branch != 'author':
+        click.echo('You must be on the author branch to download from Zenodo. Changing to author branch now.')
+        subprocess.run(['git', 'switch', 'author'], check=True)
     
-    subprocess.run(['git', 'switch', 'author'], check=True)
     _empty_folder()
     
     # Get Zenodo API key
