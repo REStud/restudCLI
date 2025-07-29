@@ -89,12 +89,6 @@ restud accept
 ```
 This renders `accept.txt` from `report.yaml` and copies it to the clipboard so that the data editor can paste it in the email to the author. Additionally, it automatically accepts the package into the REStud Zenodo community. Both files are committed and pushed to the respective `version` branch. The commit is tagged `accepted` and the tag is pushed to GitHub. This action stops the clock for the editorial team.
 
-If you need the Python environment for rendering the reports, you can create it with:
-```bash
-restud init
-```
-This creates a poetry environment in a temporary directory and installs the dependencies from `pyproject.toml`.
-
 # Onboading for REStud replication team
 The most important tools we use during the replication process are:
 - Github
