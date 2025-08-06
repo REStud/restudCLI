@@ -19,12 +19,17 @@ For each dataset mentioned in the Data Availability and Provenance Statement, th
 
 The README document MUST follow the "spirit" of Template README format provided below and SHOULD follow its "letter". All the contents and sections in the Template README are required, unless stated otherwise, but the order of sections may be changed. Section headers can be changed slightly, but the content of each section should be present. Specific formatting like table, checkbox, or bullet list are not required. The Template README is not a strict template, but rather a set of guidelines for the structure and content of the README document.
 
+## Structured Replication Report
+There may be a `report.yaml` file in the root of this folder. If it exists, it is a structured replication report that contains information about the replication package, including the authors, title, and a list of all the DCAS rules, whether the human annotator has answered "yes", "na" or "no" to each rule, and comments for the "no" answers. 
+
 # Instructions for Claude Code
 Review the folder structure, file list and the README document you found. Do not change any of the files or folders. Do not read data files or program scripts, and do not run any code.
 
 Your task is to verify whether the folder content and the README document comply with the Data and Code Availability Standard (DCAS) below. Ignore the License rule, the license is included by default in Zenodo metadata. 
 
-For each rule, give a yes/no/not applicable answers. If you answered "no", provide a short explanation of why the rule is not satisfied. Do this in a Markdown table format, with the following columns:
+If present, read the `report.yaml` file and incorporate its comments into your report. Very lightly edit the comments for language and clarity, if needed, but do not change the meaning. Include all comments, do not leave any out. You can overrule "yes" answers in the `report.yaml` file if you find issues with the README document or folder structure, and explain why in your report.
+
+In your final report, for each DCAS rule, give a yes/no/not applicable answer. If you answered "no", provide a short explanation of why the rule is not satisfied. Do this in a Markdown table format, with the following columns:
 - Rule number
 - Rule description
 - Yes/No/Not applicable
@@ -41,7 +46,7 @@ When you identify issues in the README document structure or content, provide a 
 - Template README section
 - Issue description
 
-This table is only needed if there are README-related issues.
+This table is only needed if there are README-related issues. Remember, the template README is not a strict template, but rather a set of guidelines for the structure and content of the README document. 
 
 Provide a summary of your findings, including the overall compliance with the DCAS and any major issues that need to be addressed.
 
