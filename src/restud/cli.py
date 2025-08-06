@@ -241,7 +241,7 @@ def accept(ctx):
     subprocess.run(['git', 'add', 'accept.txt'], check=True)
     subprocess.run(['git', 'commit', '-m', 'acceptance message'], check=True)
     subprocess.run(['git', 'tag', 'accepted'], check=True)
-    subprocess.run(['git', 'push', '--tags'], check=True)
+    subprocess.run(['git', 'push'], check=True)
     
     # Check community status
     _check_community(ctx)
