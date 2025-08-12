@@ -1,0 +1,16 @@
+Dear {salutation},
+
+Thank you for making these changes. Please address these remaining issues before we can accept your package: 
+
+{requests}
+
+After you have made these changes, please upload the revision to Zenodo and send me the link to the new version. 
+
+When creating the new version, please edit the date of the Zenodo record to reflect when you have made the changes. Please keep the Trello email address in the "cc" of your reply email, so that we can properly track your package in our system.
+
+Best regards,
+
+Miklos
+
+Miklós Koren
+Data Editor, Review of Economic Studies

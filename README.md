@@ -1,15 +1,57 @@
-# Fish command `restud`
+# REStud CLI Tool
+
+A Python command-line tool for managing REStud workflow operations, replacing the previous fish function and separate Python script. All template files are included in the package installation - no separate configuration needed.
 
 ## Installation
-To install `restud` you need to have [fish shell](https://fishshell.com/) and [poetry](https://python-poetry.org/) installed. Then you can install `restud` with:
+
+Install globally with uv:
+
 ```bash
-curl -sL https://raw.githubusercontent.com/REStud/install_restud_tool/main/install.sh | source
+uv tool install git+ssh://git@github.com/REStud/workflow.git
 ```
 
-Later you can update `restud` with:
+Or clone the repository and use `uv run` for development:
+
 ```bash
-restud install
+git clone git@github.com:REStud/workflow.git
+cd workflow
+uv run restud --help
 ```
+
+For development, `uv run` handles dependencies automatically.
+
+## Migration from Fish Function
+
+The Python CLI provides identical functionality to the original fish function. All commands work the same way:
+
+```bash
+restud pull mypackage    # Same as before
+restud revise           # Same as before  
+restud accept           # Now includes Zenodo community acceptance
+```
+
+### Interactive Shell
+
+Use the `restud shell` command to enter a rich interactive shell:
+
+```bash
+restud shell
+```
+
+Features:
+- **Smart prompt** showing current folder and git branch
+- **Report status indicators**:
+  - `report` (green) - no DCAS rules have "no" answers
+  - `report` (red) - at least one DCAS rule has "no" answer
+  - `accepted` (bold green) - if git tag "accepted" exists
+- **Built-in cd command** that persists directory changes
+- **Arrow key support** with command history and editing
+- **Tab completion** for file and directory names
+- **REStud commands** work directly: `pull mypackage`, `revise`, `accept`, etc.
+- **Shell passthrough** for non-REStud commands
+- **Built-in help** with `help` command
+- **Colored output** for better readability
+- Type `exit` to quit
 
 ## Usage
 Create a repository for a new replication package 29123:
@@ -22,11 +64,11 @@ Download files from Zenodo URL https://zenodo.org/record/12345:
 ```bash
 restud download https://zenodo.org/record/12345
 ```
-Deletes all the files in the current directory. Downloads and unzips the files to the current directory. The large files are gitignored, the small ones are committed and pushed to `author` branch.
+Automatically switches to `author` branch if not already there. Deletes all the files in the current directory (except `.git`). Downloads and unzips the files to the current directory. The large files are gitignored, the small ones are committed and pushed to `author` branch.
 
 Commit the report:
 ```bash
-restud report
+restud report ?version?
 ```
 
 Pull the most recent version of the package from GitHub:
@@ -41,17 +83,11 @@ restud revise
 ```
 This renders `response.txt` from `report.yaml` and copies it to the clipboard so that the data editor can paste it in the email to the author. Both files are committed and pushed to the respective `version` branch. This action stops the clock on the revision for the editorial team.
 
-Render the acceptance email:
+Render the acceptance email and accept into Zenodo community:
 ```bash
 restud accept
 ```
-This renders `accept.txt` from `report.yaml` and copies it to the clipboard so that the data editor can paste it in the email to the author. Both files are committed and pushed to the respective `version` branch. The commit is tagged `accepted` and the tag is pushed to GitHub. This action stops the clock for the editorial team.
-
-If you need the Python environment for rendering the reports, you can create it with:
-```bash
-restud init
-```
-This creates a poetry environment in a temporary directory and installs the dependencies from `pyproject.toml`.
+This renders `accept.txt` from `report.yaml` and copies it to the clipboard so that the data editor can paste it in the email to the author. Additionally, it automatically accepts the package into the REStud Zenodo community. Both files are committed and pushed to the respective `version` branch. The commit is tagged `accepted` and the tag is pushed to GitHub. This action stops the clock for the editorial team.
 
 # Onboading for REStud replication team
 The most important tools we use during the replication process are:
@@ -96,6 +132,7 @@ If there are any questions during the onboarding process please reach out to us 
 
 # Replication workflow for REStud packages
 
+All steps considering downloads and 
 The order of work with packages is the following:
 	1. orange packages = short reviews, in order of inflow (descending order in the columns)
  	2. red packages = urgent reviews, in order of inflow
@@ -108,34 +145,15 @@ The order of work with packages is the following:
 
 2. Open a card in the *Author submitted* column and go in descending order.
 3. move the card to the lowest position of the *At team* column
-4. Create a new git repo on the [REStud replication packages organization](https://github.com/restud-replication-packages)
-	- the repo should be created empty as frequently the packages have a README.md
-5. Make a new directory on your machine/server wherever you work.
-	- It is not a necessity but I like to name the folders by MS numbers just like the git repos.
-6. Initializie git on the new folder and add the remote you created before.
-7. Open the zenodo link on the card in the comment section, it should look like __*https://zenodo.org/record/somenumbers*__
-	- If there is no link on the card, check the submission form comment (usually the first comment on any card), and check if the paper is subject to the [__Data Availability Policy__](https://restud.github.io/data-editor/before/#data-availability-policy)
-		- If not, then our job is done as we do not have to check the package.
-		- If yes, then ask Miklós about the zenodo link, this part is mostly automatized on his part, but there are some mistakes sometimes.
-
-For the steps 8-10 I use the ***initialize_replication.sh***.
-
-8. Download the replication zip package from zenodo.
-9. Unzip the package into the folder
-10. Commit the unpacked package
-	- If the zip was downloaded in the folder, remove it.
-	- If there are large (>20 MB) files, initialize git lfs.
-		- git lfs track the large files
-		- some help in how to initialize and use git lfs in the folder is in ***init_ex_for_lfs.sh***, it is not a working code rather just some frame
-	- git add all the files
-	- git commit with commit message "add files from *zenodo link*"
-11. Create report.yaml with the structre shown in the example.
-
-
-## In case of started or second round packages:
-### First time we see it
-12. Open the corresponding trello card
-13. Run through the checklist on the trello card
+4. Create a new git repo, new repo on machine and initialize git with the proper remote. This is all done with `restud new`.
+5. Open the zenodo link on the card in the comment section, it should look like *https://zenodo.org/record/somenumbers*.
+6. Download the replication zip package from zenodo. Unzip the package into the folder. Commit the unpacked package. These are done using `restud download`. The exact steps are:
+	- Download and unzip the zenodo record into the current folder.
+ 	- If there are large (>20 MB) files, ignore them.
+	- git add and commit all the files
+7. Create next `version` branch and `report.yaml`.
+8. Open the corresponding trello card
+9. Run through the checklist on the trello card
 	- if the codes consume too much time to run, it is better to rather just roughly check through the codes
 	- Most frequent mistakes:
 		- relative path
@@ -143,20 +161,16 @@ For the steps 8-10 I use the ***initialize_replication.sh***.
 		- not saved outputs
 		- missing guides to install packages/toolboxes that are needed for the code
 		- data citation and official DAS (Data Availabilty Statement)
-14. Write the observed mistakes into the request/recommendation part
-	- for that we have a template about what are the standard codes in the *report.yaml* included in template_answers.txt
-	- it is possible that you observe something that is working the way it is submitted, but you have some quality of life improvement advices or better practices, etc. These go into the recommendation part.
-15. Commit the report.yaml, usually I use this as a message: *add report.yaml*
-16. If finished with the trello check list move the card to *At editor*
+10. When you checked everything within the package use `restud report` for commiting and pushing the report and version branch to github.
+11. Move the card to *At editor*
 	- it is not necessary to have everything checked the first time as the packages should iterate between us and the authors until the package is acceptable.
 
 ### Updating packages:
 
 This part is important because in most cases we have to check a package at least twice.
 
-17. git pull the package
-18. open the zenodo link and download the updated zip
-	- **Take care here which version you download as you have to manually switch the version!**
-19. Repeat steps 9-10
-20. Repeat steps 13-16
+12. git pull the package
+13. open the zenodo link and use `restud download`.
+	- **Take care here which version you download as you have to manually switch the version sometimes!**
+14. Repeat steps 8-11
 	- Mainly here we check whether the updated package corrected what we asked for in the requests.
