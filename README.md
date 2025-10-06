@@ -113,6 +113,8 @@ This is the team kanban board, we use it to track the workflow of the packages a
 
 The Zenodo archives are the public sharing and archiving portal for the authors to share their replication packages with us. You can reach the zenodo community [here](https://zenodo.org/communities/restud-replication/?page=1&size=20), the community stores all the submitted packages. There is no need for any permissions or accounts as the packages stored on zenodo are all public.
 
+Useful link for authors on [record submission](https://help.zenodo.org/docs/share/submit-to-community).
+
 ## Tresorit
 ![image](https://github.com/REStud/workflow/assets/47605029/7eb60f97-43fa-4ca3-b0b4-ac85f0a8d5fe)
 
