@@ -312,6 +312,67 @@ def download(ctx, zenodo_url):
 
 
 @cli.command()
+@click.argument('record_id')
+@click.pass_context
+def download_withid(ctx, record_id):
+    """Download package from Zenodo draft using record ID."""
+    # Get Zenodo API key
+    zenodo_key = _get_zenodo_key()
+
+    # Query the draft API to get available files
+    console = Console()
+    console.print(f"[blue]Fetching file list for record {record_id}...[/blue]")
+
+    api_url = f"https://zenodo.org/api/records/{record_id}/draft"
+    response = requests.get(f"{api_url}?access_token={zenodo_key}")
+
+    if response.status_code != 200:
+        console.print(f"[red]Error: Could not access draft record {record_id}[/red]")
+        console.print(f"[red]Status code: {response.status_code}[/red]")
+        console.print(f"[red]Response: {response.text}[/red]")
+        sys.exit(1)
+
+    data = response.json()
+
+    # Get files from the response
+    if 'files' not in data or not data['files']:
+        console.print("[red]Error: No files found in this draft[/red]")
+        sys.exit(1)
+
+    files = data['files']
+
+    # If only one file, use it automatically
+    if len(files) == 1:
+        filename = files[0]['key']
+        console.print(f"[green]Found 1 file: {filename}[/green]")
+    else:
+        # Multiple files, prompt user to choose
+        console.print(f"[yellow]Found {len(files)} files:[/yellow]")
+        for idx, file_info in enumerate(files, 1):
+            size_mb = file_info.get('size', 0) / (1024 * 1024)
+            console.print(f"  {idx}. {file_info['key']} ({size_mb:.2f} MB)")
+
+        while True:
+            choice = Prompt.ask("\nSelect file number", default="1")
+            try:
+                choice_idx = int(choice) - 1
+                if 0 <= choice_idx < len(files):
+                    filename = files[choice_idx]['key']
+                    break
+                else:
+                    console.print(f"[red]Invalid choice. Please enter a number between 1 and {len(files)}[/red]")
+            except ValueError:
+                console.print("[red]Invalid input. Please enter a number[/red]")
+
+    # Construct the download URL and invoke the download command
+    download_url = f"https://zenodo.org/api/records/{record_id}/draft/files/{filename}/content"
+    console.print(f"[blue]Downloading {filename}...[/blue]")
+
+    # Invoke the download command with the constructed URL
+    ctx.invoke(download, zenodo_url=download_url)
+
+
+@cli.command()
 @click.argument('branch_name', required=False)
 @click.pass_context
 def report(ctx, branch_name):
