@@ -52,7 +52,7 @@ def get_current_folder():
 def get_git_branch():
     """Get current git branch, if any."""
     try:
-        result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], 
+        result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'],
                                capture_output=True, text=True, check=True)
         return result.stdout.strip()
     except:
@@ -62,7 +62,7 @@ def get_git_branch():
 def get_git_accepted_tag():
     """Check if 'accepted' tag exists in the repo."""
     try:
-        result = subprocess.run(['git', 'tag', '-l', 'accepted'], 
+        result = subprocess.run(['git', 'tag', '-l', 'accepted'],
                                capture_output=True, text=True, check=True)
         return result.stdout.strip() == 'accepted'
     except:
@@ -73,20 +73,20 @@ def get_report_status():
     """Check report.yaml status if it exists."""
     if not os.path.exists('report.yaml'):
         return None
-    
+
     try:
         # Load report.yaml
         with open('report.yaml', 'r', encoding='utf-8') as f:
             content = yaml.safe_load(f)
-        
+
         if not content or content.get('version', 1) < 2:
             return "report"  # Old format, can't determine status
-            
+
         # Check DCAS_rules
         dcas_rules = content.get('DCAS_rules', [])
         if not dcas_rules:
             return "report"
-            
+
         # Check if any rules have "no" answers (issues)
         has_issues = False
         for rule in dcas_rules:
@@ -94,9 +94,9 @@ def get_report_status():
             if answer == 'no':
                 has_issues = True
                 break
-                
+
         return "issues" if has_issues else "good"
-        
+
     except Exception:
         return "report"  # Error reading, just show basic status
 
@@ -104,16 +104,16 @@ def get_report_status():
 def create_shell_prompt():
     """Create a rich shell prompt with status indicators."""
     prompt_parts = []
-    
+
     # Add folder name
     folder = get_current_folder()
     prompt_parts.append(f"[bold blue]{folder}[/bold blue]")
-    
+
     # Add git branch if available
     branch = get_git_branch()
     if branch:
         prompt_parts.append(f"[yellow]({branch})[/yellow]")
-    
+
     # Add report status if report.yaml exists
     report_status = get_report_status()
     if report_status == "good":
@@ -122,11 +122,11 @@ def create_shell_prompt():
         prompt_parts.append("[red]report[/red]")
     elif report_status == "report":
         prompt_parts.append("[dim]report[/dim]")
-    
+
     # Add accepted tag if it exists
     if get_git_accepted_tag():
         prompt_parts.append("[bold green]accepted[/bold green]")
-    
+
     # Join with spaces and add the prompt symbol
     return " ".join(prompt_parts) + " [bold]>[/bold] "
 
@@ -172,8 +172,8 @@ def pull(ctx, package_name):
     else:
         os.chdir(package_name)
         subprocess.run(['git', 'pull'], check=True)
-    
-    # Get latest version and switch to it  
+
+    # Get latest version and switch to it
     result = subprocess.run(['git', 'branch', '-r'], capture_output=True, text=True, check=True)
     versions = [line.strip() for line in result.stdout.split('\n') if 'version' in line]
     if versions:
@@ -188,24 +188,24 @@ def revise(ctx):
     # Get current branch
     result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], capture_output=True, text=True, check=True)
     branch_name = result.stdout.strip()
-    
+
     # Select email template based on version
     if branch_name == "version1":
         email_template = get_template_path('response1.txt')
     else:
         email_template = get_template_path('response2.txt')
-    
+
     # Generate response
     tags_file = get_template_path('template-answers.yaml')
     response = generate_report(email_template, 'report.yaml', tags_file)
-    
+
     # Write response to file
     with open('response.txt', 'w') as f:
         f.write(response)
-    
+
     # Copy to clipboard (macOS)
     subprocess.run(['pbcopy'], input=response.encode(), check=True)
-    
+
     # Commit changes
     subprocess.run(['git', 'add', 'report.yaml', 'response.txt'], check=True)
     subprocess.run(['git', 'commit', '-m', 'edit report'], check=True)
@@ -219,31 +219,31 @@ def accept(ctx):
     # Get current branch
     result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], capture_output=True, text=True, check=True)
     branch_name = result.stdout.strip()
-    
+
     # Select email template based on version
     if branch_name == "version1":
-        email_template = get_template_path('accept1.txt') 
+        email_template = get_template_path('accept1.txt')
     else:
         email_template = get_template_path('accept2.txt')
-    
+
     # Generate acceptance message
     tags_file = get_template_path('template-answers.yaml')
     acceptance = generate_report(email_template, 'report.yaml', tags_file)
-    
+
     # Write acceptance to file
     with open('accept.txt', 'w') as f:
         f.write(acceptance)
-    
+
     # Copy to clipboard (macOS)
     subprocess.run(['pbcopy'], input=acceptance.encode(), check=True)
-    
+
     # Commit and tag
     subprocess.run(['git', 'add', 'accept.txt'], check=True)
     subprocess.run(['git', 'commit', '-m', 'acceptance message'], check=True)
     subprocess.run(['git', 'tag', 'accepted'], check=True)
     subprocess.run(['git', 'push'], check=True)
     subprocess.run(['git', 'push', '--tags'], check=True)
-    
+
     # Check community status
     _check_community(ctx)
 
@@ -271,26 +271,26 @@ def download(ctx, zenodo_url):
     if branch != 'author':
         click.echo('You must be on the author branch to download from Zenodo. Changing to author branch now.')
         subprocess.run(['git', 'switch', 'author'], check=True)
-    
+
     _empty_folder()
-    
+
     # Get Zenodo API key
     zenodo_key = _get_zenodo_key()
-    
+
     # Download from Zenodo
     if "preview" in zenodo_url:
         _download_zenodo_preview(zenodo_url)
     else:
         _download_zenodo(zenodo_url, zenodo_key)
-    
+
     # Commit changes
     _commit_changes()
     _check_for_files()
-    
+
     # Check if other branches exist
     result = subprocess.run(['git', 'branch', '-a'], capture_output=True, text=True, check=True)
     branches = [line.strip() for line in result.stdout.split('\n') if line.strip() and 'author' not in line]
-    
+
     if not branches:
         click.echo('No other branch than author exists')
         subprocess.run(['git', 'commit', '-m', f'initial commit from zenodo {zenodo_url}'], check=True)
@@ -301,13 +301,13 @@ def download(ctx, zenodo_url):
         click.echo('Other branches exist')
         subprocess.run(['git', 'commit', '-m', f'update to zenodo version {zenodo_url}'], check=True)
         subprocess.run(['git', 'push'], check=True)
-        
+
         # Get latest version number
         latest_version = _get_latest_version()
         new_version = latest_version + 1
         subprocess.run(['git', 'checkout', '-b', f'version{new_version}'], check=True)
         shutil.copy(get_template_path('report-template.yaml'), 'report.yaml')
-    
+
     _save_zenodo_id(zenodo_url)
 
 
@@ -374,31 +374,36 @@ def download_withid(ctx, record_id):
 
 @cli.command()
 @click.argument('branch_name', required=False)
+@click.option('--no-commit', is_flag=True, help='Generate report without committing and pushing')
 @click.pass_context
-def report(ctx, branch_name):
+def report(ctx, branch_name, no_commit):
     """Generate and commit report."""
     # Get current branch if not specified
     if not branch_name:
         result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], capture_output=True, text=True, check=True)
         branch_name = result.stdout.strip()
-    
+
     # Select email template based on version
     if branch_name == "version1":
         email_template = get_template_path('response1.txt')
-    else:  
+    else:
         email_template = get_template_path('response2.txt')
-        
+
     # Generate response
     tags_file = get_template_path('template-answers.yaml')
     response = generate_report(email_template, 'report.yaml', tags_file)
-    
+
     with open('response.txt', 'w') as f:
         f.write(response)
-    
-    # Commit changes
-    subprocess.run(['git', 'add', 'report.yaml', 'response.txt'], check=True)
-    subprocess.run(['git', 'commit', '-m', 'update report'], check=True)
-    subprocess.run(['git', 'push', 'origin', branch_name], check=True)
+
+    # Commit changes (unless --no-commit flag is set)
+    if not no_commit:
+        subprocess.run(['git', 'add', 'report.yaml', 'response.txt'], check=True)
+        subprocess.run(['git', 'commit', '-m', 'update report'], check=True)
+        subprocess.run(['git', 'push', 'origin', branch_name], check=True)
+    else:
+        console = Console()
+        console.print("[yellow]Report generated without committing. Files ready for review.[/yellow]")
 
 
 @cli.command()
@@ -407,31 +412,31 @@ def shell(ctx):
     """Start interactive REStud shell."""
     console = Console()
     user_shell = os.environ.get('SHELL', '/bin/bash')
-    
+
     # Welcome message
     welcome_text = Text()
     welcome_text.append("REStud Interactive Shell", style="bold blue")
     welcome_text.append("\nType 'exit' to quit, 'help' for available commands", style="dim")
     welcome_text.append("\nArrow keys, command history, and tab completion are supported", style="dim")
-    
+
     console.print(Panel(welcome_text, border_style="blue"))
-    
+
     # Available commands for completion
     restud_commands = [cmd.name for cmd in cli.commands.values() if cmd.name != 'shell']
-    
+
     # Create command history and tab completion
     history = InMemoryHistory()
     completer = PathCompleter()
-    
+
     # Create key bindings for tab completion
     bindings = KeyBindings()
-    
+
     while True:
         try:
             # Create dynamic prompt with status indicators
             prompt_text = create_shell_prompt()
             html_prompt = rich_to_html_prompt(prompt_text)
-            
+
             # Use prompt-toolkit for readline support with tab completion
             command = prompt(
                 HTML(html_prompt),
@@ -440,23 +445,23 @@ def shell(ctx):
                 key_bindings=bindings,
                 complete_style='column'
             ).strip()
-            
+
             if not command:
                 continue
-                
+
             if command == 'exit':
                 break
-            
+
             if command == 'help':
                 console.print(f"[bold]Available REStud commands:[/bold] {', '.join(restud_commands)}")
                 console.print("[bold]Built-in commands:[/bold] cd")
                 console.print("[dim]Other commands are passed to your shell[/dim]")
                 continue
-                
+
             # Split command into parts
             parts = command.split()
             command_name = parts[0]
-            
+
             # Check if it's a REStud command
             if command_name in restud_commands:
                 try:
@@ -464,7 +469,7 @@ def shell(ctx):
                     cmd = cli.commands[command_name]
                     # Create a new context for the subcommand
                     sub_ctx = click.Context(cmd, parent=ctx)
-                    
+
                     # Parse arguments based on command signature
                     if command_name == 'pull' and len(parts) > 1:
                         ctx.invoke(cmd, package_name=parts[1])
@@ -478,7 +483,7 @@ def shell(ctx):
                         ctx.invoke(cmd)
                     else:
                         console.print(f"[yellow]Usage: {command_name} [arguments][/yellow]")
-                        
+
                 except Exception as e:
                     console.print(f"[red]Error executing REStud command:[/red] {e}")
             elif command_name == 'cd':
@@ -490,11 +495,11 @@ def shell(ctx):
                     else:
                         # cd with path argument
                         target_dir = os.path.expanduser(parts[1])
-                    
+
                     # Change directory
                     os.chdir(target_dir)
                     console.print(f"[dim]Changed to: {os.getcwd()}[/dim]")
-                    
+
                 except FileNotFoundError:
                     console.print(f"[red]cd: no such file or directory: {parts[1] if len(parts) > 1 else '~'}[/red]")
                 except PermissionError:
@@ -510,10 +515,10 @@ def shell(ctx):
                 except KeyboardInterrupt:
                     console.print("[yellow]Interrupted[/yellow]")
                     continue
-                    
+
         except (EOFError, KeyboardInterrupt):
             break
-    
+
     console.print("[blue]Exiting REStud shell[/blue]")
 
 
@@ -529,13 +534,13 @@ def _download_zenodo(url, api_key):
     """Download from Zenodo with API key."""
     response = requests.get(f"{url}?access_token={api_key}")
     response.raise_for_status()
-    
+
     with open('repo.zip', 'wb') as f:
         f.write(response.content)
-    
+
     with open('.zenodo', 'w') as f:
         f.write(url)
-    
+
     subprocess.run(['unzip', 'repo.zip'], check=True)
     os.remove('repo.zip')
 
@@ -544,30 +549,30 @@ def _download_zenodo_preview(url):
     """Download Zenodo preview with cookie."""
     cookie_value = _get_cookie()
     headers = {'Cookie': f'session={cookie_value}'}
-    
+
     response = requests.get(url, headers=headers)
     response.raise_for_status()
-    
+
     with open('repo.zip', 'wb') as f:
         f.write(response.content)
-    
+
     with open('.zenodo', 'w') as f:
         f.write(url)
-        
-    subprocess.run(['unzip', 'repo.zip'], check=True) 
+
+    subprocess.run(['unzip', 'repo.zip'], check=True)
     os.remove('repo.zip')
 
 
 def _get_cookie():
     """Get or create Zenodo session cookie."""
     cookie_file = os.path.expanduser('~/.config/restud/restud-cookie.json')
-    
+
     if not os.path.exists(cookie_file):
         _create_cookie()
-        
+
     with open(cookie_file, 'r') as f:
         cookie_data = json.load(f)
-    
+
     # Check if cookie is expired
     from datetime import datetime
     exp_date = datetime.strptime(cookie_data['exp_date'], '%Y-%m-%d')
@@ -575,22 +580,22 @@ def _get_cookie():
         _create_cookie()
         with open(cookie_file, 'r') as f:
             cookie_data = json.load(f)
-    
+
     return cookie_data['value']
 
 
 def _create_cookie():
     """Create new Zenodo session cookie."""
     console = Console()
-    
+
     console.print("\n[yellow]Your REStud cookie either does not exist or expired.[/yellow]")
     console.print("To download preview records, you need to create a new one!")
-    
-    confirm = Prompt.ask("Create new cookie in ~/.config/restud/restud-cookie.json?", 
+
+    confirm = Prompt.ask("Create new cookie in ~/.config/restud/restud-cookie.json?",
                         choices=["y", "n"], default="n", console=console)
     if confirm.lower() != 'y':
         return
-    
+
     # Instructions panel
     instructions = Text()
     instructions.append("To create a new cookie you need:\n", style="bold")
@@ -601,29 +606,29 @@ def _create_cookie():
     instructions.append("2. Open developer tools (F12)\n")
     instructions.append("3. Go to Application > Storage > Cookies\n")
     instructions.append("4. Find the 'session' cookie")
-    
+
     console.print(Panel(instructions, title="Cookie Setup Instructions", border_style="green"))
-    
+
     value = Prompt.ask("[bold]Cookie value[/bold]", console=console)
     exp_date = Prompt.ask("[bold]Expiration date (YYYY-MM-DD)[/bold]", console=console)
-    
+
     cookie_data = {
         "name": "session",
         "value": value,
         "exp_date": exp_date
     }
-    
+
     cookie_file = os.path.expanduser('~/.config/restud/restud-cookie.json')
     os.makedirs(os.path.dirname(cookie_file), exist_ok=True)
-    
+
     with open(cookie_file, 'w') as f:
         json.dump(cookie_data, f)
-    
+
     console.print("[green]Cookie saved successfully![/green]")
 
 
 def _empty_folder():
-    """Remove directories from current folder.""" 
+    """Remove directories from current folder."""
     dirs = [d for d in os.listdir('.') if os.path.isdir(d)]
     if dirs:
         click.echo("Removing previous directories!")
@@ -643,11 +648,11 @@ def _commit_changes():
             filepath = os.path.join(root, file)
             if os.path.getsize(filepath) > 20 * 1024 * 1024:  # 20MB
                 large_files.append(filepath[2:])  # Remove './' prefix
-    
+
     if large_files:
         with open('.gitignore', 'w') as f:
             f.write('\n'.join(large_files))
-    
+
     subprocess.run(['git', 'add', '.'], check=True)
 
 
@@ -660,7 +665,7 @@ def _check_for_files():
             filepath = os.path.join(root, file)
             if os.path.getsize(filepath) == 0:
                 empty_files.append(filepath)
-    
+
     if empty_files:
         console.print(f"[yellow]Total empty files: {len(empty_files)}[/yellow]")
         console.print(f"[dim]Empty files: {empty_files}[/dim]")
@@ -700,19 +705,19 @@ def _save_zenodo_id(url):
 def _check_community(ctx):
     """Check and manage community membership."""
     console = Console()
-    
+
     # Get Zenodo ID
     with open('.zenodo', 'r') as f:
         url = f.read().strip()
-    
+
     import re
     match = re.search(r'/(\d+)/', url)
     if not match:
         console.print("[red]Could not extract Zenodo ID[/red]")
         return
-        
+
     zenodo_id = match.group(1)
-    
+
     # Check community membership
     response = requests.get(f"https://zenodo.org/api/records/{zenodo_id}/communities")
     if 'restud-replication' not in response.text:
@@ -730,7 +735,7 @@ def _community_accept(zenodo_id):
 
     cookie_value = _get_cookie()
     headers = {'Cookie': f'session={cookie_value}'}
-    
+
     url = _get_accept_request(zenodo_id, api_key, headers)
     requests.post(f"{url}?access_token={api_key}", headers=headers)
 
