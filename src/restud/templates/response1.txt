@@ -1,6 +1,6 @@
 Dear {salutation},
 
-Thank you for sending the replication materials for "{title}" to the Review. 
+Congratulations on your acceptance to ReStud, and thank you for sending the replication materials for "{title}" to the Review.
 
 To help our readers replicate your results, my team and I have reviewed the code, data and documentation you have submitted.
 
@@ -12,13 +12,15 @@ In addition, please consider the following recommendations to ease reproducibili
 
 {recommendations}
 
-After you have made these changes, please upload the revision to Zenodo and send me the link to the new version. 
+After you have made these changes, please upload the revision to Zenodo and send me the link to the new version.
 
-When creating the new version, please edit the date of the Zenodo record to reflect when you have made the changes. Please keep the Trello email address in the "cc" of your reply email, so that we can properly track your package in our system.
+When creating the new version, please edit the date of the Zenodo record to reflect when you have made the changes.
 
 Best regards,
 
-Miklos
+Andrea
 
-Miklós Koren
+--
+Andrea Moro
 Data Editor, Review of Economic Studies
+andrea@andreamoro.net
