@@ -1,6 +1,10 @@
 Dear {salutation},
 
-Thank you for making these changes. Please address these remaining issues before we can accept your package:
+Thank you for making these changes.
+
+{praise}
+
+Please address these remaining issues before we can accept your package:
 
 {requests}
 

@@ -2,6 +2,8 @@ Dear {salutation},
 
 Congratulations on your acceptance to ReStud, and thank you for sending the replication materials for "{title}" to the Review.
 
+{praise}
+
 To help our readers replicate your results, my team and I have reviewed the code, data and documentation you have submitted.
 
 To comply with our Data Availability Policy, please make the following changes:
