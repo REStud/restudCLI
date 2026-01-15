@@ -32,6 +32,7 @@ class ReportTemplate(BaseModel):
     salutation: str
     email: str
     title: str
+    manuscript_id: Optional[str] = None
     praise: Optional[str] = None
     DCAS_rules: List[Union[DCASRuleItemV2, DCASRuleItemV3]]
     recommendations: Optional[Union[List[str], str]] = []
@@ -58,14 +59,13 @@ class ReportTemplate(BaseModel):
             "salutation": self.salutation,
             "email": self.email,
             "title": self.title,
+            "manuscript_id": self.manuscript_id or "",
             "praise": self.praise or "",
             "requests": "",
             "recommendations": self.recommendations or [],
             "DCAS_rules": self.DCAS_rules,
             "tags": self.tags
-        }
-
-        # Format DCAS rules with answers for the template
+        }        # Format DCAS rules with answers for the template
         requests = []
         for rule in self.DCAS_rules:
             if rule.answer.value == "yes":
