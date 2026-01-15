@@ -297,6 +297,7 @@ def download(ctx, zenodo_url):
         subprocess.run(['git', 'push', 'origin', 'author', '--set-upstream'], check=True)
         subprocess.run(['git', 'checkout', '-b', 'version1'], check=True)
         shutil.copy(get_template_path('report-template.yaml'), 'report.yaml')
+        _add_manuscript_id_to_report()
     else:
         click.echo('Other branches exist')
         subprocess.run(['git', 'commit', '-m', f'update to zenodo version {zenodo_url}'], check=True)
@@ -307,6 +308,7 @@ def download(ctx, zenodo_url):
         new_version = latest_version + 1
         subprocess.run(['git', 'checkout', '-b', f'version{new_version}'], check=True)
         shutil.copy(get_template_path('report-template.yaml'), 'report.yaml')
+        _add_manuscript_id_to_report()
 
     _save_zenodo_id(zenodo_url)
 
@@ -700,6 +702,23 @@ def _save_zenodo_id(url):
         zenodo_id = match.group(1)
         with open('.zenodo_id', 'w') as f:
             f.write(zenodo_id)
+
+
+def _add_manuscript_id_to_report():
+    """Add manuscript_id to report.yaml from the GitHub repo name."""
+    # Get the current folder name (which is the repo name)
+    repo_name = get_current_folder()
+
+    # Read the report.yaml file
+    with open('report.yaml', 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    # Replace the empty manuscript_id field with the repo name
+    content = content.replace('manuscript_id: ', f'manuscript_id: {repo_name}')
+
+    # Write back to report.yaml
+    with open('report.yaml', 'w', encoding='utf-8') as f:
+        f.write(content)
 
 
 def _check_community(ctx):

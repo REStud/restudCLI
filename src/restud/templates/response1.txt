@@ -1,3 +1,6 @@
+{email}
+Data editor report, ReStud MS {manuscript_id}
+
 Dear {salutation},
 
 Congratulations on your acceptance to ReStud, and thank you for sending the replication materials for "{title}" to the Review.

@@ -1,6 +1,9 @@
+{email}
+Data editor report, ReStud MS {manuscript_id}
+
 Dear {salutation},
 
-Thank you for making these changes.
+Thank you for submitting a revision of your replication materials for "{title}".
 
 {praise}
 
