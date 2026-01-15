@@ -257,7 +257,12 @@ def new(ctx, package_name):
     os.makedirs(package_name, exist_ok=True)
     os.chdir(package_name)
     subprocess.run(['git', 'init'], check=True)
-    subprocess.run(['gh', 'repo', 'create', f'restud-replication-packages/{package_name}', '--private', '--team', 'Replicators'], check=True)
+
+    # Try to create the repo, but continue if it already exists
+    result = subprocess.run(['gh', 'repo', 'create', f'restud-replication-packages/{package_name}', '--private', '--team', 'Replicators'], capture_output=True, text=True)
+    if result.returncode != 0 and 'already exists' not in result.stderr:
+        click.echo(f"Error creating repository: {result.stderr}", err=True)
+
     subprocess.run(['git', 'remote', 'add', 'origin', f'git@github.com:restud-replication-packages/{package_name}.git'], check=True)
     subprocess.run(['git', 'checkout', '-b', 'author'], check=True)
 
