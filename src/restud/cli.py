@@ -261,6 +261,13 @@ def new(ctx, package_name):
     subprocess.run(['git', 'remote', 'add', 'origin', f'git@github.com:restud-replication-packages/{package_name}.git'], check=True)
     subprocess.run(['git', 'checkout', '-b', 'author'], check=True)
 
+    # Create and commit report.yaml
+    shutil.copy(get_template_path('report-template.yaml'), 'report.yaml')
+    _add_manuscript_id_to_report()
+    subprocess.run(['git', 'add', 'report.yaml'], check=True)
+    subprocess.run(['git', 'commit', '-m', 'initial report template'], check=True)
+    subprocess.run(['git', 'push', 'origin', 'author', '--set-upstream'], check=True)
+
 
 @cli.command()
 @click.argument('zenodo_url')
@@ -296,8 +303,6 @@ def download(ctx, zenodo_url):
         subprocess.run(['git', 'commit', '-m', f'initial commit from zenodo {zenodo_url}'], check=True)
         subprocess.run(['git', 'push', 'origin', 'author', '--set-upstream'], check=True)
         subprocess.run(['git', 'checkout', '-b', 'version1'], check=True)
-        shutil.copy(get_template_path('report-template.yaml'), 'report.yaml')
-        _add_manuscript_id_to_report()
     else:
         click.echo('Other branches exist')
         subprocess.run(['git', 'commit', '-m', f'update to zenodo version {zenodo_url}'], check=True)
@@ -307,8 +312,6 @@ def download(ctx, zenodo_url):
         latest_version = _get_latest_version()
         new_version = latest_version + 1
         subprocess.run(['git', 'checkout', '-b', f'version{new_version}'], check=True)
-        shutil.copy(get_template_path('report-template.yaml'), 'report.yaml')
-        _add_manuscript_id_to_report()
 
     _save_zenodo_id(zenodo_url)
 
