@@ -94,6 +94,10 @@ def ordered_list(list_items):
     if not list_items:
         return ""
 
+    # If there's only one item, return it without numbering
+    if len(list_items) == 1:
+        return list_items[0]
+
     output = []
     for i, item in enumerate(list_items):
         output.append(f'{i+1}. {item}')

@@ -397,13 +397,17 @@ def report(ctx, branch_name, no_commit):
     data_0_answer = _get_dcas_rule_answer('data-0')
 
     # Select email template based on data-0 rule and version
-    if data_0_answer == 'no':
+    # Handle both "no" string and "false" boolean converted to string
+    if data_0_answer in ('no', 'false'):
         # Use a special template if data-0 rule is "no"
         email_template = get_template_path('response-needRP.txt')
+        click.echo(f"[DEBUG] Selected template: response-needRP.txt (data-0=no/false)", err=True)
     elif branch_name == "version1":
         email_template = get_template_path('response1.txt')
+        click.echo(f"[DEBUG] Selected template: response1.txt (version1)", err=True)
     else:
         email_template = get_template_path('response2.txt')
+        click.echo(f"[DEBUG] Selected template: response2.txt (default)", err=True)
 
     # Generate response
     tags_file = get_template_path('template-answers.yaml')
@@ -743,9 +747,15 @@ def _get_dcas_rule_answer(dcas_reference):
 
         if content and 'DCAS_rules' in content:
             for rule in content['DCAS_rules']:
-                if rule.get('dcas_reference') == dcas_reference:
-                    return rule.get('answer', '').lower()
-    except Exception:
+                ref = rule.get('dcas_reference', '')
+                answer = rule.get('answer', '')
+                # Handle both string and boolean/other types
+                answer_str = str(answer).lower() if answer is not None else ''
+                if ref == dcas_reference:
+                    return answer_str
+        click.echo(f"[DEBUG] No rule found for {dcas_reference}", err=True)
+    except Exception as e:
+        click.echo(f"[DEBUG] Error reading report.yaml: {e}", err=True)
         return None
     return None
 
