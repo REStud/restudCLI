@@ -7,6 +7,11 @@ manuscript_id:
 praise:
 DCAS_rules:
   - name: DAS
+    description: The paper is subject to the DAS, and reports to be subject to it
+    answer: yes
+    comment:
+    dcas_reference: data-0
+  - name: DAS
     description: A Data Availability Statement is provided with detailed enough information such that an independent researcher can replicate the steps needed to access the original data, including any limitations and the expected monetary and time cost of data access.
     answer: yes
     comment:

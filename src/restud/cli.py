@@ -393,8 +393,14 @@ def report(ctx, branch_name, no_commit):
         result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], capture_output=True, text=True, check=True)
         branch_name = result.stdout.strip()
 
-    # Select email template based on version
-    if branch_name == "version1":
+    # Check the data-0 DCAS rule answer to determine template
+    data_0_answer = _get_dcas_rule_answer('data-0')
+
+    # Select email template based on data-0 rule and version
+    if data_0_answer == 'no':
+        # Use a special template if data-0 rule is "no"
+        email_template = get_template_path('response-needRP.txt')
+    elif branch_name == "version1":
         email_template = get_template_path('response1.txt')
     else:
         email_template = get_template_path('response2.txt')
@@ -727,6 +733,21 @@ def _add_manuscript_id_to_report():
     # Write back to report.yaml
     with open('report.yaml', 'w', encoding='utf-8') as f:
         f.write(content)
+
+
+def _get_dcas_rule_answer(dcas_reference):
+    """Get the answer to a specific DCAS rule by its reference."""
+    try:
+        with open('report.yaml', 'r', encoding='utf-8') as f:
+            content = yaml.safe_load(f)
+
+        if content and 'DCAS_rules' in content:
+            for rule in content['DCAS_rules']:
+                if rule.get('dcas_reference') == dcas_reference:
+                    return rule.get('answer', '').lower()
+    except Exception:
+        return None
+    return None
 
 
 def _check_community(ctx):
