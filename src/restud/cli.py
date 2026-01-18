@@ -31,6 +31,9 @@ from prompt_toolkit.key_binding import KeyBindings
 
 from .render import generate_report, ReportTemplate
 
+# GitHub organization for replication packages
+GITHUB_ORG = 'restud-replicatinon-packages'
+
 
 def get_template_path(filename):
     """Get path to template file from package resources."""
@@ -167,7 +170,7 @@ def cli(ctx):
 def pull(ctx, package_name):
     """Pull a replication package."""
     if not os.path.exists(package_name):
-        subprocess.run(['git', 'clone', f'git@github.com:restud-replication-packages/{package_name}.git'], check=True)
+        subprocess.run(['git', 'clone', f'git@github.com:{GITHUB_ORG}/{package_name}.git'], check=True)
         os.chdir(package_name)
     else:
         os.chdir(package_name)
@@ -259,11 +262,11 @@ def new(ctx, package_name):
     subprocess.run(['git', 'init'], check=True)
 
     # Try to create the repo, but continue if it already exists
-    result = subprocess.run(['gh', 'repo', 'create', f'restud-replication-packages/{package_name}', '--private', '--team', 'Replicators'], capture_output=True, text=True)
+    result = subprocess.run(['gh', 'repo', 'create', f'{GITHUB_ORG}/{package_name}', '--private', '--team', 'Replicators'], capture_output=True, text=True)
     if result.returncode != 0 and 'already exists' not in result.stderr:
         click.echo(f"Error creating repository: {result.stderr}", err=True)
 
-    subprocess.run(['git', 'remote', 'add', 'origin', f'git@github.com:restud-replication-packages/{package_name}.git'], check=True)
+    subprocess.run(['git', 'remote', 'add', 'origin', f'git@github.com:{GITHUB_ORG}/{package_name}.git'], check=True)
     subprocess.run(['git', 'checkout', '-b', 'author'], check=True)
 
     # Create and commit report.yaml
