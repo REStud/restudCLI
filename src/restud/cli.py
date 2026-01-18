@@ -664,19 +664,79 @@ def _empty_folder():
 
 def _commit_changes():
     """Commit changes, ignoring large files."""
+    console = Console()
+    size_limit = 20 * 1024 * 1024  # 20MB
+
+    # Read existing .gitignore if it exists
+    existing_gitignore = ""
+    if os.path.exists('.gitignore'):
+        with open('.gitignore', 'r') as f:
+            existing_gitignore = f.read()
+
     # Find large files and add to gitignore
     large_files = []
+    large_files_info = []
+
     for root, dirs, files in os.walk('.'):
         for file in files:
             filepath = os.path.join(root, file)
-            if os.path.getsize(filepath) > 20 * 1024 * 1024:  # 20MB
-                large_files.append(filepath[2:])  # Remove './' prefix
+            try:
+                file_size = os.path.getsize(filepath)
+                if file_size > size_limit:
+                    relative_path = filepath[2:]  # Remove './' prefix
+                    large_files.append(relative_path)
+
+                    # Store detailed info
+                    size_mb = file_size / (1024 * 1024)
+                    was_previously_ignored = relative_path in existing_gitignore
+                    large_files_info.append({
+                        'path': relative_path,
+                        'size_bytes': file_size,
+                        'size_mb': size_mb,
+                        'previously_ignored': was_previously_ignored,
+                        'now_ignored': True  # Will be ignored after this run
+                    })
+            except (OSError, IOError):
+                pass
 
     if large_files:
+        # Create .gitignore with large files
         with open('.gitignore', 'w') as f:
             f.write('\n'.join(large_files))
 
+        # Save report to file
+        report_file = 'LARGE_FILES.txt'
+        with open(report_file, 'w') as f:
+            f.write(f"Large Files Report (size limit: {size_limit / (1024 * 1024):.0f}MB)\n")
+            f.write("=" * 70 + "\n\n")
+
+            for file_info in large_files_info:
+                prev_status = "Yes" if file_info['previously_ignored'] else "No"
+                now_status = "Yes" if file_info['now_ignored'] else "No"
+                f.write(f"File: {file_info['path']}\n")
+                f.write(f"  Size: {file_info['size_mb']:.2f} MB ({file_info['size_bytes']:,} bytes)\n")
+                f.write(f"  Previously in .gitignore: {prev_status}\n")
+                f.write(f"  Now in .gitignore: {now_status}\n\n")
+
+            f.write(f"\nTotal large files: {len(large_files_info)}\n")
+            total_size_mb = sum(f['size_mb'] for f in large_files_info)
+            f.write(f"Total size: {total_size_mb:.2f} MB\n")
+
+        # Display summary to user
+        console.print(f"\n[yellow]Found {len(large_files)} files exceeding {size_limit / (1024 * 1024):.0f}MB limit[/yellow]")
+        console.print(f"[blue]Detailed report saved to: {report_file}[/blue]\n")
+
+        for file_info in large_files_info:
+            if file_info['previously_ignored']:
+                status = "[green]✓[/green]"
+                label = "was already ignored"
+            else:
+                status = "[yellow]➕[/yellow]"
+                label = "newly ignored"
+            console.print(f"  {status} {file_info['path']} ({file_info['size_mb']:.2f} MB) - {label}")
+
     subprocess.run(['git', 'add', '.'], check=True)
+
 
 
 def _check_for_files():
