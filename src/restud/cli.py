@@ -32,7 +32,7 @@ from prompt_toolkit.key_binding import KeyBindings
 from .render import generate_report, ReportTemplate
 
 # GitHub organization for replication packages
-GITHUB_ORG = 'restud-replicatinon-packages'
+GITHUB_ORG = 'restud-replication-packages'
 
 
 def get_template_path(filename):
@@ -699,11 +699,19 @@ def _commit_changes():
             except (OSError, IOError):
                 pass
 
-    if large_files:
-        # Create .gitignore with large files
-        with open('.gitignore', 'w') as f:
-            f.write('\n'.join(large_files))
+    # Always create/update .gitignore with common ignore patterns
+    gitignore_entries = [
+        '_MACOSX',
+        '.DS_Store'
+    ]
 
+    if large_files:
+        gitignore_entries = large_files + gitignore_entries
+
+    with open('.gitignore', 'w') as f:
+        f.write('\n'.join(gitignore_entries))
+
+    if large_files:
         # Save report to file
         report_file = 'LARGE_FILES.txt'
         with open(report_file, 'w') as f:
