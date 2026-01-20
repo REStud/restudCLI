@@ -7,9 +7,15 @@ Thank you for submitting a revision of your replication materials for "{title}".
 
 {praise}
 
-Please address these remaining issues before we can accept your package:
+Please address the following comments:
+
+{comments}
 
 {requests}
+
+In addition, please consider the following recommendations to ease reproducibility:
+
+{recommendations}
 
 After you have made these changes, please upload the revision to Zenodo and send me the link to the new version.
 

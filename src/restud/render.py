@@ -36,9 +36,10 @@ class ReportTemplate(BaseModel):
     praise: Optional[str] = None
     DCAS_rules: List[Union[DCASRuleItemV2, DCASRuleItemV3]]
     recommendations: Optional[Union[List[str], str]] = []
+    requests: Optional[Union[List[str], str]] = []
     tags: List[str]
 
-    @field_validator('DCAS_rules', 'recommendations', mode='before')
+    @field_validator('DCAS_rules', 'recommendations', 'requests', mode='before')
     @classmethod
     def ensure_list(cls, v):
         if v is None:
@@ -61,32 +62,29 @@ class ReportTemplate(BaseModel):
             "title": self.title,
             "manuscript_id": self.manuscript_id or "",
             "praise": self.praise or "",
-            "requests": "",
+            "comments": "",
+            "requests": self.requests or [],
             "recommendations": self.recommendations or [],
             "DCAS_rules": self.DCAS_rules,
             "tags": self.tags
-        }        # Format DCAS rules with answers for the template
-        requests = []
+        }        # Build comments from DCAS rules with answers for the template
+        comments = []
         for rule in self.DCAS_rules:
             if rule.answer.value == "yes":
                 continue
             if rule.answer.value == "na" and rule.comment is None:
                 continue
 
-            # Debug: write to file
-            with open('/tmp/debug_render.log', 'a') as f:
-                f.write(f"DEBUG: rule.name={rule.name}, answer={rule.answer.value}, comment={rule.comment}, type={type(rule.comment)}\n")
-
             if isinstance(rule.comment,List):
                 for comment in rule.comment:
                     formatted_item = f"{comment} ({rule.dcas_reference})"
-                    requests.append(formatted_item)
+                    comments.append(formatted_item)
             else:
                 if rule.comment:  # Only add if comment is not empty
                     formatted_item = f"{rule.comment} ({rule.dcas_reference})"
-                    requests.append(formatted_item)
+                    comments.append(formatted_item)
 
-        result["requests"] = requests
+        result["comments"] = comments
         return result
 
 def ordered_list(list_items):
@@ -142,11 +140,15 @@ def generate_report(template_path, report_path, tags_path):
     with open(template_path, 'rt', encoding='utf-8') as f:
         template_text = f.read()
 
-    content = yaml.load(
-        open(tags_path, 'rt', encoding='utf-8').read() + '\n' +
-        open(report_path, 'rt', encoding='utf-8').read(),
-        Loader=CoreLoader
-    )
+    # Load YAML files separately and merge
+    with open(tags_path, 'rt', encoding='utf-8') as f:
+        tags_content = yaml.load(f.read(), Loader=CoreLoader) or {}
+
+    with open(report_path, 'rt', encoding='utf-8') as f:
+        report_content = yaml.load(f.read(), Loader=CoreLoader) or {}
+
+    # Merge: report_content takes precedence over tags_content
+    content = {**tags_content, **report_content}
 
     if content.get("version") >= 2:
         # Load into DCAS template
@@ -157,6 +159,18 @@ def generate_report(template_path, report_path, tags_path):
         parsed_content = {k: parse(content[k]) for k in content}
         # Apply singular/plural rules
         template_text = singulars_and_plurals(template_text, content)
+        # Remove comments section if empty
+        if not content.get('comments') or len(content.get('comments', [])) == 0:
+            template_text = template_text.replace(
+                "{comments}\n\n",
+                ""
+            )
+        # Remove requests section if empty
+        if not content.get('requests') or len(content.get('requests', [])) == 0:
+            template_text = template_text.replace(
+                "{requests}\n\n",
+                ""
+            )
         # Remove recommendations section if empty
         if not content.get('recommendations') or len(content.get('recommendations', [])) == 0:
             template_text = template_text.replace(

@@ -9,7 +9,9 @@ Congratulations on your acceptance to ReStud, and thank you for sending the repl
 
 To help our readers replicate your results, my team and I have reviewed the code, data and documentation you have submitted.
 
-To comply with our Data Availability Policy (https://restud.dataeditor.group/before/), please make the following changes:
+To comply with our Data Availability Policy (https://restud.dataeditor.group/before/), please address the following comments:
+
+{comments}
 
 {requests}
 
