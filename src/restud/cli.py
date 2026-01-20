@@ -217,8 +217,9 @@ def revise(ctx):
 
 
 @cli.command()
+@click.option('--no-commit', is_flag=True, help='Generate acceptance message without committing and pushing')
 @click.pass_context
-def accept(ctx):
+def accept(ctx, no_commit):
     """Generate acceptance message."""
     # Get current branch
     result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], capture_output=True, text=True, check=True)
@@ -241,15 +242,19 @@ def accept(ctx):
     # Copy to clipboard (macOS)
     subprocess.run(['pbcopy'], input=acceptance.encode(), check=True)
 
-    # Commit and tag
-    subprocess.run(['git', 'add', 'accept.txt'], check=True)
-    subprocess.run(['git', 'commit', '-m', 'acceptance message'], check=True)
-    subprocess.run(['git', 'tag', 'accepted'], check=True)
-    subprocess.run(['git', 'push'], check=True)
-    subprocess.run(['git', 'push', '--tags'], check=True)
+    # Commit and tag (unless --no-commit flag is set)
+    if not no_commit:
+        subprocess.run(['git', 'add', 'accept.txt'], check=True)
+        subprocess.run(['git', 'commit', '-m', 'acceptance message'], check=True)
+        subprocess.run(['git', 'tag', 'accepted'], check=True)
+        subprocess.run(['git', 'push'], check=True)
+        subprocess.run(['git', 'push', '--tags'], check=True)
 
-    # Check community status
-    _check_community(ctx)
+        # Check community status
+        _check_community(ctx)
+    else:
+        console = Console()
+        console.print("[yellow]Acceptance message generated without committing. Files ready for review.[/yellow]")
 
 
 
