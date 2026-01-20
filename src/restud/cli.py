@@ -159,7 +159,19 @@ def rich_to_html_prompt(rich_markup):
 @click.group()
 @click.pass_context
 def cli(ctx):
-    """REStud workflow management CLI tool."""
+    """REStud workflow management CLI tool.
+
+    Commands:
+      pull              Pull a replication package from GitHub
+      new               Create a new replication package
+      download          Download and import package files from Zenodo
+      download-withid   Download from Zenodo draft using record ID
+      revise            Generate revision response and push changes
+      report            Generate and commit report with optional branch
+      accept            Generate acceptance message with optional commit
+      shell             Start interactive REStud shell with command history
+
+    Use 'restud COMMAND --help' for more information on a command."""
     ctx.ensure_object(dict)
 
 
@@ -169,7 +181,14 @@ def cli(ctx):
 @click.argument('package_name')
 @click.pass_context
 def pull(ctx, package_name):
-    """Pull a replication package."""
+    """Pull a replication package.
+
+    Clones the repository if it doesn't exist locally, or pulls latest changes.
+    Automatically switches to the latest version branch.
+
+    Args:
+        PACKAGE_NAME: Name of the replication package to pull
+    """
     if not os.path.exists(package_name):
         subprocess.run(['git', 'clone', f'git@github.com:{GITHUB_ORG}/{package_name}.git'], check=True)
         os.chdir(package_name)
@@ -186,9 +205,18 @@ def pull(ctx, package_name):
 
 
 @cli.command()
+@click.option('--no-commit', is_flag=True, help='Generate revision response without committing and pushing')
 @click.pass_context
-def revise(ctx):
-    """Generate revision response."""
+def revise(ctx, no_commit):
+    """Generate revision response.
+
+    Creates a revision response based on the current version branch and report.yaml.
+    Automatically selects the appropriate template, commits changes, and copies to clipboard.
+    Works on version1 or version2+ branches with different templates.
+
+    Options:
+        --no-commit    Generate response without committing and pushing
+    """
     # Get current branch
     result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], capture_output=True, text=True, check=True)
     branch_name = result.stdout.strip()
@@ -210,17 +238,29 @@ def revise(ctx):
     # Copy to clipboard (macOS)
     subprocess.run(['pbcopy'], input=response.encode(), check=True)
 
-    # Commit changes
-    subprocess.run(['git', 'add', 'report.yaml', 'response.txt'], check=True)
-    subprocess.run(['git', 'commit', '-m', 'edit report'], check=True)
-    subprocess.run(['git', 'push'], check=True)
+    # Commit changes (unless --no-commit flag is set)
+    if not no_commit:
+        subprocess.run(['git', 'add', 'report.yaml', 'response.txt'], check=True)
+        subprocess.run(['git', 'commit', '-m', 'edit report'], check=True)
+        subprocess.run(['git', 'push'], check=True)
+    else:
+        console = Console()
+        console.print("[yellow]Revision response generated without committing. Files ready for review.[/yellow]")
 
 
 @cli.command()
 @click.option('--no-commit', is_flag=True, help='Generate acceptance message without committing and pushing')
 @click.pass_context
 def accept(ctx, no_commit):
-    """Generate acceptance message."""
+    """Generate acceptance message.
+
+    Creates an acceptance message based on the current version branch and report.yaml.
+    Automatically selects the appropriate template, commits changes, tags as 'accepted',
+    and copies to clipboard (unless --no-commit is used).
+
+    Options:
+        --no-commit    Generate message without committing, pushing, or tagging
+    """
     # Get current branch
     result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], capture_output=True, text=True, check=True)
     branch_name = result.stdout.strip()
@@ -262,7 +302,14 @@ def accept(ctx, no_commit):
 @click.argument('package_name')
 @click.pass_context
 def new(ctx, package_name):
-    """Create new replication package."""
+    """Create new replication package.
+
+    Initializes a new local repository with report.yaml template, creates a remote GitHub
+    repository in the restud-replication-packages organization, and sets up the 'author' branch.
+
+    Args:
+        PACKAGE_NAME: Name for the new replication package
+    """
     os.makedirs(package_name, exist_ok=True)
     os.chdir(package_name)
     subprocess.run(['git', 'init'], check=True)
@@ -304,7 +351,15 @@ def new(ctx, package_name):
 @click.argument('zenodo_url')
 @click.pass_context
 def download(ctx, zenodo_url):
-    """Download package from Zenodo."""
+    """Download package from Zenodo.
+
+    Downloads and imports replication package files from Zenodo (published or preview records).
+    Extracts files, removes large files from git tracking, and creates version branches.
+    Requires Zenodo API key in ~/.config/.zenodo_api_key for published records.
+
+    Args:
+        ZENODO_URL: URL to the Zenodo record or preview record
+    """
     branch = get_git_branch()
     if branch != 'author':
         click.echo('You must be on the author branch to download from Zenodo. Changing to author branch now.')
@@ -351,7 +406,14 @@ def download(ctx, zenodo_url):
 @click.argument('record_id')
 @click.pass_context
 def download_withid(ctx, record_id):
-    """Download package from Zenodo draft using record ID."""
+    """Download package from Zenodo draft using record ID.
+
+    Downloads from a Zenodo draft record by ID. Lists available files and prompts for
+    selection (or auto-selects if only one file). Requires valid Zenodo session cookie.
+
+    Args:
+        RECORD_ID: Zenodo draft record ID (numeric)
+    """
     # Get Zenodo API key
     zenodo_key = _get_zenodo_key()
 
@@ -413,7 +475,17 @@ def download_withid(ctx, record_id):
 @click.option('--no-commit', is_flag=True, help='Generate report without committing and pushing')
 @click.pass_context
 def report(ctx, branch_name, no_commit):
-    """Generate and commit report."""
+    """Generate and commit report.
+
+    Generates response.txt from report.yaml using the appropriate template based on
+    the data-0 DCAS rule and branch version. Commits and pushes changes (unless --no-commit).
+
+    Args:
+        BRANCH_NAME: Optional branch name (defaults to current branch)
+
+    Options:
+        --no-commit    Generate report without committing and pushing
+    """
     # Get current branch if not specified
     if not branch_name:
         result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], capture_output=True, text=True, check=True)
@@ -455,7 +527,19 @@ def report(ctx, branch_name, no_commit):
 @cli.command()
 @click.pass_context
 def shell(ctx):
-    """Start interactive REStud shell."""
+    """Start interactive REStud shell.
+
+    Launches an interactive shell with REStud command support, command history,
+    tab completion, and status indicators (branch, report status, accepted tag).
+
+    Built-in commands:
+        cd DIRECTORY   Change directory
+        help           Show available commands
+        exit           Quit the shell
+
+    REStud commands are available directly in the shell.
+    Non-REStud commands are passed to the system shell.
+    """
     console = Console()
     user_shell = os.environ.get('SHELL', '/bin/bash')
 
