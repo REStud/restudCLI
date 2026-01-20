@@ -380,7 +380,16 @@ def download(ctx, zenodo_url):
     _commit_changes()
     _check_for_files()
 
-    # Check if other branches exist
+    # Check if there are staged changes to commit
+    status_result = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, check=True)
+    has_changes = status_result.stdout.strip() != ""
+
+    if not has_changes:
+        click.echo('No changes detected. Files are already up to date.')
+        _save_zenodo_id(zenodo_url)
+        return
+
+    # Check if other branches exist (only needed if there are changes to commit)
     result = subprocess.run(['git', 'branch', '-a'], capture_output=True, text=True, check=True)
     branches = [line.strip() for line in result.stdout.split('\n') if line.strip() and 'author' not in line]
 
