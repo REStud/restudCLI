@@ -87,25 +87,36 @@ class ReportTemplate(BaseModel):
         result["comments"] = comments
         return result
 
-def ordered_list(list_items):
-    """Format a list as an ordered list with numbers"""
+def ordered_list(list_items, style='numeric'):
+    """Format a list as an ordered list with numbers or letters.
+
+    Args:
+        list_items: List of items to format
+        style: 'numeric' (1, 2, 3), 'alpha' (a, b, c), or 'alpha_paren' (a), b), c))
+    """
     if not list_items:
         return ""
 
-    # If there's only one item, return it without numbering
-    if len(list_items) == 1:
-        return list_items[0]
-
     output = []
     for i, item in enumerate(list_items):
-        output.append(f'{i+1}. {item}')
+        if style == 'numeric':
+            output.append(f'{i+1}. {item}')
+        elif style == 'alpha':
+            output.append(f'{chr(97+i)}. {item}')
+        elif style == 'alpha_paren':
+            output.append(f'{chr(97+i)}) {item}')
     return '\n'.join(output)
 
 
-def parse(value):
-    """Parse different types of values for template rendering"""
+def parse(value, list_style='numeric'):
+    """Parse different types of values for template rendering
+
+    Args:
+        value: Value to parse
+        list_style: Style for lists - 'numeric', 'alpha', or 'alpha_paren'
+    """
     if isinstance(value, list):
-        return ordered_list(value)
+        return ordered_list(value, style=list_style)
     else:
         return value
 
@@ -155,8 +166,13 @@ def generate_report(template_path, report_path, tags_path):
         report = ReportTemplate.from_dict(content)
         # Get content from DCASTemplate
         content = report.to_template_format()
-        # Parse content
-        parsed_content = {k: parse(content[k]) for k in content}
+        # Parse content with different styles for recommendations
+        parsed_content = {}
+        for k in content:
+            if k == 'recommendations':
+                parsed_content[k] = parse(content[k], list_style='alpha_paren')
+            else:
+                parsed_content[k] = parse(content[k])
         # Apply singular/plural rules
         template_text = singulars_and_plurals(template_text, content)
         # Remove comments section if empty
