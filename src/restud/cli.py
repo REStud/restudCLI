@@ -4,6 +4,7 @@
 import os
 import sys
 import subprocess
+from subprocess import CalledProcessError
 import tempfile
 import shutil
 import json
@@ -266,7 +267,13 @@ def new(ctx, package_name):
     if result.returncode != 0 and 'already exists' not in result.stderr:
         click.echo(f"Error creating repository: {result.stderr}", err=True)
 
-    subprocess.run(['git', 'remote', 'add', 'origin', f'git@github.com:{GITHUB_ORG}/{package_name}.git'], check=True)
+    # Add or update the remote
+    remote_url = f'git@github.com:{GITHUB_ORG}/{package_name}.git'
+    result = subprocess.run(['git', 'remote', 'add', 'origin', remote_url], capture_output=True, text=True)
+    if result.returncode != 0:
+        # Remote already exists, update it
+        subprocess.run(['git', 'remote', 'set-url', 'origin', remote_url], check=True)
+
     subprocess.run(['git', 'checkout', '-b', 'author'], check=True)
 
     # Create and commit report.yaml
@@ -274,7 +281,18 @@ def new(ctx, package_name):
     _add_manuscript_id_to_report()
     subprocess.run(['git', 'add', 'report.yaml'], check=True)
     subprocess.run(['git', 'commit', '-m', 'initial report template'], check=True)
-    subprocess.run(['git', 'push', 'origin', 'author', '--set-upstream'], check=True)
+
+    # Try to push, if it fails because remote has content, pull first then push
+    result = subprocess.run(['git', 'push', 'origin', 'author', '--set-upstream'], capture_output=True, text=True)
+    if result.returncode != 0:
+        if 'rejected' in result.stderr or 'fetch first' in result.stderr:
+            # Remote exists with content, fetch and merge
+            click.echo("Repository already exists remotely. Pulling existing content...")
+            subprocess.run(['git', 'fetch', 'origin', 'author'], check=True)
+            subprocess.run(['git', 'merge', 'origin/author', '--allow-unrelated-histories'], check=True)
+            subprocess.run(['git', 'push', 'origin', 'author'], check=True)
+        else:
+            raise CalledProcessError(result.returncode, result.args)
 
 
 @cli.command()
