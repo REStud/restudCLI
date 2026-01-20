@@ -166,3 +166,6 @@ uv.lock
 input/
 temp/
 *.log
+
+# mac
+.DS_Store
