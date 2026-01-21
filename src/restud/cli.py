@@ -551,6 +551,56 @@ def report(ctx, branch_name, no_commit):
 
 
 @cli.command()
+@click.option('-andrea', 'branch', flag_value='andrea', help='Reinstall from remote andrea branch')
+@click.option('--pip', 'use_pip', is_flag=True, help='Use pip instead of uv for installation')
+@click.option('--ssh', 'use_ssh', is_flag=True, help='Use SSH URL instead of HTTPS')
+@click.pass_context
+def reinstall(ctx, branch, use_pip, use_ssh):
+    """Reinstall REStud from remote branch.
+
+    Reinstalls REStud from the specified remote branch (default: andrea).
+
+    Options:
+        -andrea       Reinstall from remote origin/andrea branch
+        --pip         Use pip instead of uv for installation
+        --ssh         Use SSH URL instead of HTTPS
+    """
+    if not branch:
+        branch = 'andrea'
+
+    console = Console()
+    console.print(f"[blue]Reinstalling REStud from origin/{branch}...[/blue]")
+
+    try:
+        if use_ssh:
+            git_url = f'git+ssh://git@github.com/REStud/workflow.git@{branch}#subdirectory=.'
+        else:
+            git_url = f'git+https://github.com/REStud/workflow.git@{branch}#subdirectory=.'
+
+        if use_pip:
+            console.print("[dim]Using pip for installation...[/dim]")
+            subprocess.run(
+                ['pip', 'install', '--force-reinstall', git_url],
+                check=True
+            )
+        else:
+            console.print("[dim]Using uv for installation...[/dim]")
+            subprocess.run(
+                ['uv', 'tool', 'install', '--force', git_url],
+                check=True
+            )
+
+        console.print(f"[green]REStud successfully reinstalled from origin/{branch}[/green]")
+
+    except subprocess.CalledProcessError as e:
+        console.print(f"[red]Error reinstalling REStud: {e}[/red]")
+        installer = "pip" if use_pip else "uv"
+        console.print(f"[yellow]Make sure you have the correct remote branch and {installer} is installed.[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@cli.command()
 @click.pass_context
 def shell(ctx):
     """Start interactive REStud shell.
