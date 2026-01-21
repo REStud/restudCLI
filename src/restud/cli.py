@@ -386,12 +386,21 @@ def download(ctx, zenodo_url):
 
     if not has_changes:
         click.echo('No changes detected. Files are already up to date.')
-        _save_zenodo_id(zenodo_url)
+        # Still checkout the latest version branch even if no changes
+        result = subprocess.run(['git', 'branch', '-a'], capture_output=True, text=True, check=True)
+        branches = [line.strip() for line in result.stdout.split('\n') if line.strip() and 'author' not in line and 'version' in line]
+        if branches:
+            latest_version = _get_latest_version()
+            if latest_version > 0:
+                subprocess.run(['git', 'checkout', f'version{latest_version}'], check=True)
+                click.echo(f'Switched to version{latest_version}')
+        _save_zenodo_metadata(zenodo_url)
         return
 
     # Check if other branches exist (only needed if there are changes to commit)
     result = subprocess.run(['git', 'branch', '-a'], capture_output=True, text=True, check=True)
-    branches = [line.strip() for line in result.stdout.split('\n') if line.strip() and 'author' not in line]
+    # Filter for local branches only (exclude remote branches and author)
+    branches = [line.strip() for line in result.stdout.split('\n') if line.strip() and 'author' not in line and not line.strip().startswith('remotes/')]
 
     if not branches:
         click.echo('No other branch than author exists')
@@ -406,9 +415,17 @@ def download(ctx, zenodo_url):
         # Get latest version number
         latest_version = _get_latest_version()
         new_version = latest_version + 1
+
+        # Create new version branch
         subprocess.run(['git', 'checkout', '-b', f'version{new_version}'], check=True)
 
-    _save_zenodo_id(zenodo_url)
+        # Copy report.yaml from previous version branch and commit it
+        _copy_report_from_previous_version(latest_version)
+
+        # Push the new version branch
+        subprocess.run(['git', 'push', '-u', 'origin', f'version{new_version}'], check=True)
+
+    _save_zenodo_metadata(zenodo_url)
 
 
 @cli.command()
@@ -677,9 +694,6 @@ def _download_zenodo(url, api_key):
     with open('repo.zip', 'wb') as f:
         f.write(response.content)
 
-    with open('.zenodo', 'w') as f:
-        f.write(url)
-
     subprocess.run(['unzip', 'repo.zip'], check=True)
     os.remove('repo.zip')
 
@@ -694,9 +708,6 @@ def _download_zenodo_preview(url):
 
     with open('repo.zip', 'wb') as f:
         f.write(response.content)
-
-    with open('.zenodo', 'w') as f:
-        f.write(url)
 
     subprocess.run(['unzip', 'repo.zip'], check=True)
     os.remove('repo.zip')
@@ -817,6 +828,7 @@ def _commit_changes():
 
     # Always create/update .gitignore with common ignore patterns
     gitignore_entries = [
+        '.zenodo',
         '_MACOSX',
         '.DS_Store'
     ]
@@ -885,8 +897,8 @@ def _check_for_files():
 
 
 def _get_latest_version():
-    """Get the latest version number from git branches."""
-    result = subprocess.run(['git', 'branch', '-r'], capture_output=True, text=True, check=True)
+    """Get the latest version number from git branches (local or remote)."""
+    result = subprocess.run(['git', 'branch', '-a'], capture_output=True, text=True, check=True)
     versions = []
     for line in result.stdout.split('\n'):
         if 'version' in line:
@@ -898,15 +910,46 @@ def _get_latest_version():
     return max(versions) if versions else 0
 
 
-def _save_zenodo_id(url):
-    """Save Zenodo ID for later use."""
-    # Extract ID from URL
+def _copy_report_from_previous_version(latest_version):
+    """Copy report.yaml from the previous version branch and commit it."""
+    previous_branch = f'version{latest_version}'
+
+    try:
+        # Check if report.yaml exists on the previous version branch
+        result = subprocess.run(
+            ['git', 'show', f'{previous_branch}:report.yaml'],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+
+        if result.returncode == 0:
+            # Write the report.yaml from previous branch
+            with open('report.yaml', 'w') as f:
+                f.write(result.stdout)
+
+            # Stage and commit the report.yaml
+            subprocess.run(['git', 'add', 'report.yaml'], check=True)
+            subprocess.run(['git', 'commit', '-m', f'copy report.yaml from {previous_branch}'], check=True)
+            click.echo(f'Copied report.yaml from {previous_branch}')
+        else:
+            click.echo(f'Warning: report.yaml not found on {previous_branch}')
+    except Exception as e:
+        click.echo(f'Warning: Could not copy report.yaml from previous version: {e}')
+
+
+def _save_zenodo_metadata(url):
+    """Save Zenodo URL and ID to .zenodo file in YAML format."""
     import re
     match = re.search(r'/(\d+)/', url)
     if match:
         zenodo_id = match.group(1)
-        with open('.zenodo_id', 'w') as f:
-            f.write(zenodo_id)
+        zenodo_data = {
+            'url': url,
+            'id': zenodo_id
+        }
+        with open('.zenodo', 'w') as f:
+            yaml.dump(zenodo_data, f, default_flow_style=False)
 
 
 def _add_manuscript_id_to_report():
@@ -951,17 +994,18 @@ def _check_community(ctx):
     """Check and manage community membership."""
     console = Console()
 
-    # Get Zenodo ID
-    with open('.zenodo', 'r') as f:
-        url = f.read().strip()
-
-    import re
-    match = re.search(r'/(\d+)/', url)
-    if not match:
-        console.print("[red]Could not extract Zenodo ID[/red]")
+    # Get Zenodo ID from .zenodo file
+    try:
+        with open('.zenodo', 'r') as f:
+            zenodo_data = yaml.safe_load(f)
+        zenodo_id = zenodo_data.get('id')
+    except Exception as e:
+        console.print(f"[red]Could not read .zenodo file: {e}[/red]")
         return
 
-    zenodo_id = match.group(1)
+    if not zenodo_id:
+        console.print("[red]Could not extract Zenodo ID[/red]")
+        return
 
     # Check community membership
     response = requests.get(f"https://zenodo.org/api/records/{zenodo_id}/communities")
