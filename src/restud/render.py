@@ -151,15 +151,12 @@ def generate_report(template_path, report_path, tags_path):
     with open(template_path, 'rt', encoding='utf-8') as f:
         template_text = f.read()
 
-    # Load YAML files separately and merge
-    with open(tags_path, 'rt', encoding='utf-8') as f:
-        tags_content = yaml.load(f.read(), Loader=CoreLoader) or {}
-
-    with open(report_path, 'rt', encoding='utf-8') as f:
-        report_content = yaml.load(f.read(), Loader=CoreLoader) or {}
-
-    # Merge: report_content takes precedence over tags_content
-    content = {**tags_content, **report_content}
+    # Combine files with anchors: tags first (defines anchors), then report (uses them)
+    content = yaml.load(
+        open(tags_path, 'rt', encoding='utf-8').read() + '\n' +
+        open(report_path, 'rt', encoding='utf-8').read(),
+        Loader=CoreLoader
+    )
 
     if content.get("version") >= 2:
         # Load into DCAS template

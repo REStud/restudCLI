@@ -79,9 +79,12 @@ def get_report_status():
         return None
 
     try:
-        # Load report.yaml
-        with open('report.yaml', 'r', encoding='utf-8') as f:
-            content = yaml.safe_load(f)
+        # Load report.yaml with template anchors
+        from yamlcore import CoreLoader
+        tags_file = get_template_path('template-answers.yaml')
+        with open('report.yaml', 'r', encoding='utf-8') as f_report, open(tags_file, 'r', encoding='utf-8') as f_tags:
+            combined = f_tags.read() + '\n' + f_report.read()
+        content = yaml.load(combined, Loader=CoreLoader)
 
         if not content or content.get('version', 1) < 2:
             return "report"  # Old format, can't determine status
@@ -285,10 +288,20 @@ def accept(ctx, no_commit):
     # Commit and tag (unless --no-commit flag is set)
     if not no_commit:
         subprocess.run(['git', 'add', 'accept.txt'], check=True)
-        subprocess.run(['git', 'commit', '-m', 'acceptance message'], check=True)
-        subprocess.run(['git', 'tag', 'accepted'], check=True)
-        subprocess.run(['git', 'push'], check=True)
-        subprocess.run(['git', 'push', '--tags'], check=True)
+
+        # Check if there are staged changes to commit
+        status_result = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, check=True)
+        if status_result.stdout.strip():
+            # There are changes to commit
+            subprocess.run(['git', 'commit', '-m', 'acceptance message'], check=True)
+            subprocess.run(['git', 'tag', 'accepted'], check=True)
+            subprocess.run(['git', 'push'], check=True)
+            subprocess.run(['git', 'push', '--tags'], check=True)
+        else:
+            console = Console()
+            console.print("[yellow]No changes to commit. Accept.txt is already up to date.[/yellow]")
+            subprocess.run(['git', 'tag', 'accepted'], check=True)
+            subprocess.run(['git', 'push', '--tags'], check=True)
 
         # Check community status
         _check_community(ctx)
@@ -1022,8 +1035,11 @@ def _add_manuscript_id_to_report():
 def _get_dcas_rule_answer(dcas_reference):
     """Get the answer to a specific DCAS rule by its reference."""
     try:
-        with open('report.yaml', 'r', encoding='utf-8') as f:
-            content = yaml.safe_load(f)
+        from yamlcore import CoreLoader
+        tags_file = get_template_path('template-answers.yaml')
+        with open('report.yaml', 'r', encoding='utf-8') as f_report, open(tags_file, 'r', encoding='utf-8') as f_tags:
+            combined = f_tags.read() + '\n' + f_report.read()
+        content = yaml.load(combined, Loader=CoreLoader)
 
         if content and 'DCAS_rules' in content:
             for rule in content['DCAS_rules']:
