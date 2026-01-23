@@ -1,18 +1,38 @@
+save_output: &save_output Save all the output of the analysis in some standard format into the replication package. Tables can be saved as .csv, .xls or .tex files. It is also sufficient to save the Stata .log file. In this case, please report in the README the line numbers where the readers can find the table numbers. Figures can be saved in .eps, .pdf or .png.
+stata_packages: &stata_packages Add all Stata packages to the README that you use with instructions on how to install them.
+matlab_toolboxes: &matlab_toolboxes Mention all Matlab toolboxes that you use in the README.
+relative_path: &relative_path Replace absolute paths in the scripts with relative paths. Let readers know which folder to run your code from and use paths relative to that.
+cite_data: &cite_data Add data citations in the README as well as the manuscript for each dataset you use, whether you include it in the package or not. Citing data sources in the manuscript is the best was of directing readers to them. Please see here (https://social-science-data-editors.github.io/guidance/addtl-data-citation-guidance.html) for examples and further guidance.
+DAS: &DAS Include a formal Data Availability Statement for each of the datasets you are using. The goal is to describe clearly the steps that readers have to take if they want to access the data. Please see here (https://social-science-data-editors.github.io/template_README/) for examples and further guidance. In particular, the Data and Code Availability Statement "contains information about the sources of data used in the replication package, in addition to or instead of such detailed description in the manuscript. A DCAS goes beyond a typical data citation, as it describes additional information necessary for the obtention of the data. These may include required registrations, memberships, application procedures, monetary cost, or other qualifications, beyond a simple URL for download which is typically part of Data Citations."
+readme: &readme Please provide a README file in plain text, markdown or PDF format to explain the reader how to replicate your work. See here (https://social-science-data-editors.github.io/template_README/) for examples and further guidance.
+include_data: &include_data If the license permits, include raw data in the replication package. URLs to data websites may change and future readers may not be able to easily find the datasets you use.
+confidential_data: &confidential_data I understand some of your data is confidential. To help me understand the context better, please answer the following questions in an email to me (not in the README). https://restud.github.io/data-editor/before/#what-if-your-dataset-is-confidential
+macosx: &macosx Please remove the folder(s) .__MACOSX of .DS_STORE from the .zip file. These are metadata folders created by macOS that are not needed for replication.
+forward_slash: &forward_slash Use "/" rather than "\" in file names. The former works on all three major platforms, the latter only on Windows.
+requirements: &requirements Please describe the computational requirements for running your package. See https://social-science-data-editors.github.io/template_README/template-README.html#computational-requirements for explanation and examples.
+fortran: &fortran Describe in the README how the Fortran code can be compiled and what other libraries are needed.
+instruments: &instruments Please include all experiment or survey documentation in the package. This applies to experimental instructions, a human readable version of the survey, and the explanation in the README about the sample selection and the data collection process. See Rule 10 in https://datacodestandard.org/
+data_manipulation: &data_manipulation Please include all data manipulation code you used in creating the analysis dataframe.
+tresorit_upload: &tresorit_upload We appreciate if you can share your confidential/proprietary data with us for replication purposes. Please use the following link for sharing the files (tresorit data upload link).
+instructions: &instructions "Please specify instructions for the replicator. From the template README (https://social-science-data-editors.github.io/template_README/): The README should specify the instructions allowing a replicator to produce the same results. This should include separately instructions for data preparation and for analysis. A good replication package uses a minimal number of automated scripts, with no manual interventions required unless absolutely unavoidable. Ideally, one master script could be the only executable needed to run the entire replication."
+IPUMS: &IPUMS "The social science data editor web site (https://social-science-data-editors.github.io/guidance/Guidance/Requested_information_dcas.html#ipums) recommends using the following statement `The paper uses data obtained from IPUMS (Ruggles et al, 2017). IPUMS-CPS does not currently provide the ability to store or reference custom extracts, but allows for redistribution for the purpose of replication. The archive contains the extracted data, codebook in the folder \"data/IPUMS\". The data citation in the main article has the full URL.' Please include the codebook in an appropriate folder if you haven't done so. See also https://usa.ipums.org/usa/cite.shtml where you can find the DOI of the IPUMS data you used. You should report the exact DOI to ensure proper replicability, since dataset may change from time to time."
+
 tags:
-  - &save_output Save all the output of the analysis in some standard format into the replication package. Tables can be saved as .csv, .xls or .tex files. It is also sufficient to save the Stata .log file. In this case, please report in the README the line numbers where the readers can find the table numbers. Figures can be saved in .eps, .pdf or .png.
-  - &stata_packages Add all Stata packages to the README that you use with instructions on how to install them.
-  - &matlab_toolboxes Mention all Matlab toolboxes that you use in the README.
-  - &relative_path Replace absolute paths in the scripts with relative paths. Let readers know which folder to run your code from and use paths relative to that.
-  - &cite_data Add data citations in the README as well as the manuscript for each dataset you use, whether you include it in the package or not. Citing data sources in the manuscript is the best was of directing readers to them. Please see here (https://social-science-data-editors.github.io/guidance/addtl-data-citation-guidance.html) for examples and further guidance.
-  - &DAS Include a formal Data Availability Statement for each of the datasets you are using. The goal is to describe clearly the steps that readers have to take if they want to access the data. Please see here (https://social-science-data-editors.github.io/template_README/) for examples and further guidance. In particular, the Data and Code Availability Statement \"contains information about the sources of data used in the replication package, in addition to or instead of such detailed description in the manuscript. A DCAS goes beyond a typical data citation, as it describes additional information necessary for the obtention of the data. These may include required registrations, memberships, application procedures, monetary cost, or other qualifications, beyond a simple URL for download which is typically part of Data Citations.\"
-  - &readme Please provide a README file in plain text, markdown or PDF format to explain the reader how to replicate your work. See here (https://social-science-data-editors.github.io/template_README/) for examples and further guidance.
-  - &include_data If the license permits, include raw data in the replication package. URLs to data websites may change and future readers may not be able to easily find the datasets you use.
-  - &confidential_data I understand some of your data is confidential. To help me understand the context better, please answer the following questions in an email to me (not in the README). https://restud.github.io/data-editor/before/#what-if-your-dataset-is-confidential
-  - &macosx Remove the folder __MACOSX from the .zip file.
-  - &forward_slash Use "/" rather than "\" in file names. The former works on all three major platforms, the latter only on Windows.
-  - &requirements Please describe the computational requirements for running your package. See https://social-science-data-editors.github.io/template_README/template-README.html#computational-requirements for explanation and examples.
-  - &fortran Describe in the README how the Fortran code can be compiled and what other libraries are needed.
-  - &instruments Please include all experiment or survey documentation in the package. This applies to experimental instructions, a human readable version of the survey, and the explanation in the README about the sample selection and the data collection process. See Rule 10 in https://datacodestandard.org/
-  - &data_manipulation Please include all data manipulation code you used in creating the analysis dataframe.
-  - &tresorit_upload We appreciate if you can share your confidential/proprietary data with us for replication purposes. Please use the following link for sharing the files (tresorit data upload link).
-  - &instructions "Please specify instructions for the replicator. From the template README (https://social-science-data-editors.github.io/template_README/): The README should specify the instructions allowing a replicator to produce the same results. This should include separately instructions for data preparation and for analysis. A good replication package uses a minimal number of automated scripts, with no manual interventions required unless absolutely unavoidable. Ideally, one master script could be the only executable needed to run the entire replication."
+  - *save_output
+  - *stata_packages
+  - *matlab_toolboxes
+  - *relative_path
+  - *cite_data
+  - *DAS
+  - *readme
+  - *include_data
+  - *confidential_data
+  - *macosx
+  - *forward_slash
+  - *requirements
+  - *fortran
+  - *instruments
+  - *data_manipulation
+  - *tresorit_upload
+  - *instructions
+  - *IPUMS
