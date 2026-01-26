@@ -20,6 +20,7 @@ except ImportError:
 import click
 import requests
 import yaml
+import toml
 from rich.console import Console
 from rich.prompt import Prompt
 from rich.panel import Panel
@@ -30,7 +31,7 @@ from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.completion import PathCompleter
 from prompt_toolkit.key_binding import KeyBindings
 
-from .render import generate_report, ReportTemplate
+from restud.render_jinja2 import ReportRenderer
 
 # GitHub organization for replication packages
 GITHUB_ORG = 'restud-replication-packages'
@@ -257,8 +258,8 @@ def revise(ctx, no_commit):
 def accept(ctx, no_commit):
     """Generate acceptance message.
 
-    Creates an acceptance message based on the current version branch and report.yaml.
-    Automatically selects the appropriate template, commits changes, tags as 'accepted',
+    Creates an acceptance message based on the current version branch and report.toml.
+    Automatically selects the appropriate Jinja2 template, commits changes, tags as 'accepted',
     and copies to clipboard (unless --no-commit is used).
 
     Options:
@@ -268,15 +269,24 @@ def accept(ctx, no_commit):
     result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], capture_output=True, text=True, check=True)
     branch_name = result.stdout.strip()
 
-    # Select email template based on version
+    # Initialize renderer
+    templates_dir = get_template_path('.')
+    renderer = ReportRenderer(templates_dir)
+
+    # Validate report.toml
+    is_valid, msg = renderer.validate_toml('report.toml')
+    if not is_valid:
+        click.echo(f"[ERROR] {msg}", err=True)
+        return
+
+    # Select template based on version
     if branch_name == "version1":
-        email_template = get_template_path('accept1.txt')
+        template_name = 'accept1.jinja2'
     else:
-        email_template = get_template_path('accept2.txt')
+        template_name = 'accept2.jinja2'
 
     # Generate acceptance message
-    tags_file = get_template_path('template-answers.yaml')
-    acceptance = generate_report(email_template, 'report.yaml', tags_file)
+    acceptance = renderer.generate_report('report.toml', template_name)
 
     # Write acceptance to file
     with open('accept.txt', 'w') as f:
@@ -317,7 +327,7 @@ def accept(ctx, no_commit):
 def new(ctx, package_name):
     """Create new replication package.
 
-    Initializes a new local repository with report.yaml template, creates a remote GitHub
+    Initializes a new local repository with report.toml template, creates a remote GitHub
     repository in the restud-replication-packages organization, and sets up the 'author' branch.
 
     Args:
@@ -341,10 +351,10 @@ def new(ctx, package_name):
 
     subprocess.run(['git', 'checkout', '-b', 'author'], check=True)
 
-    # Create and commit report.yaml
-    shutil.copy(get_template_path('report-template.yaml'), 'report.yaml')
+    # Create and commit report.toml
+    shutil.copy(get_template_path('report-sample.toml'), 'report.toml')
     _add_manuscript_id_to_report()
-    subprocess.run(['git', 'add', 'report.yaml'], check=True)
+    subprocess.run(['git', 'add', 'report.toml'], check=True)
     subprocess.run(['git', 'commit', '-m', 'initial report template'], check=True)
 
     # Try to push, if it fails because remote has content, pull first then push
@@ -516,8 +526,8 @@ def download_withid(ctx, record_id):
 def report(ctx, branch_name, no_commit):
     """Generate and commit report.
 
-    Generates response.txt from report.yaml using the appropriate template based on
-    the data-0 DCAS rule and branch version. Commits and pushes changes (unless --no-commit).
+    Generates response.txt from report.toml using the appropriate Jinja2 template based on
+    the branch version. Commits and pushes changes (unless --no-commit).
 
     Args:
         BRANCH_NAME: Optional branch name (defaults to current branch)
@@ -530,32 +540,33 @@ def report(ctx, branch_name, no_commit):
         result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], capture_output=True, text=True, check=True)
         branch_name = result.stdout.strip()
 
-    # Check the data-0 DCAS rule answer to determine template
-    data_0_answer = _get_dcas_rule_answer('data-0')
+    # Initialize renderer
+    templates_dir = get_template_path('.')
+    renderer = ReportRenderer(templates_dir)
 
-    # Select email template based on data-0 rule and version
-    # Handle both "no" string and "false" boolean converted to string
-    if data_0_answer in ('no', 'false'):
-        # Use a special template if data-0 rule is "no"
-        email_template = get_template_path('response-needRP.txt')
-        click.echo(f"[DEBUG] Selected template: response-needRP.txt (data-0=no/false)", err=True)
-    elif branch_name == "version1":
-        email_template = get_template_path('response1.txt')
-        click.echo(f"[DEBUG] Selected template: response1.txt (version1)", err=True)
+    # Validate report.toml
+    is_valid, msg = renderer.validate_toml('report.toml')
+    if not is_valid:
+        click.echo(f"[ERROR] {msg}", err=True)
+        return
+
+    # Select template based on branch version
+    if branch_name == "version1":
+        template_name = 'response1.jinja2'
+        click.echo(f"[DEBUG] Selected template: response1.jinja2 (version1)", err=True)
     else:
-        email_template = get_template_path('response2.txt')
-        click.echo(f"[DEBUG] Selected template: response2.txt (default)", err=True)
+        template_name = 'response2.jinja2'
+        click.echo(f"[DEBUG] Selected template: response2.jinja2 (default)", err=True)
 
     # Generate response
-    tags_file = get_template_path('template-answers.yaml')
-    response = generate_report(email_template, 'report.yaml', tags_file)
+    response = renderer.generate_report('report.toml', template_name)
 
     with open('response.txt', 'w') as f:
         f.write(response)
 
     # Commit changes (unless --no-commit flag is set)
     if not no_commit:
-        subprocess.run(['git', 'add', 'report.yaml', 'response.txt'], check=True)
+        subprocess.run(['git', 'add', 'report.toml', 'response.txt'], check=True)
         subprocess.run(['git', 'commit', '-m', 'update report'], check=True)
         subprocess.run(['git', 'push', 'origin', branch_name], check=True)
     else:
@@ -974,31 +985,31 @@ def _get_latest_version():
 
 
 def _copy_report_from_previous_version(latest_version):
-    """Copy report.yaml from the previous version branch and commit it."""
+    """Copy report.toml from the previous version branch and commit it."""
     previous_branch = f'version{latest_version}'
 
     try:
-        # Check if report.yaml exists on the previous version branch
+        # Check if report.toml exists on the previous version branch
         result = subprocess.run(
-            ['git', 'show', f'{previous_branch}:report.yaml'],
+            ['git', 'show', f'{previous_branch}:report.toml'],
             capture_output=True,
             text=True,
             check=False
         )
 
         if result.returncode == 0:
-            # Write the report.yaml from previous branch
-            with open('report.yaml', 'w') as f:
+            # Write the report.toml from previous branch
+            with open('report.toml', 'w') as f:
                 f.write(result.stdout)
 
-            # Stage and commit the report.yaml
-            subprocess.run(['git', 'add', 'report.yaml'], check=True)
-            subprocess.run(['git', 'commit', '-m', f'copy report.yaml from {previous_branch}'], check=True)
-            click.echo(f'Copied report.yaml from {previous_branch}')
+            # Stage and commit the report.toml
+            subprocess.run(['git', 'add', 'report.toml'], check=True)
+            subprocess.run(['git', 'commit', '-m', f'copy report.toml from {previous_branch}'], check=True)
+            click.echo(f'Copied report.toml from {previous_branch}')
         else:
-            click.echo(f'Warning: report.yaml not found on {previous_branch}')
+            click.echo(f'Warning: report.toml not found on {previous_branch}')
     except Exception as e:
-        click.echo(f'Warning: Could not copy report.yaml from previous version: {e}')
+        click.echo(f'Warning: Could not copy report.toml from previous version: {e}')
 
 
 def _save_zenodo_metadata(url):
@@ -1016,20 +1027,22 @@ def _save_zenodo_metadata(url):
 
 
 def _add_manuscript_id_to_report():
-    """Add manuscript_id to report.yaml from the GitHub repo name."""
+    """Add manuscript_id to report.toml from the GitHub repo name."""
     # Get the current folder name (which is the repo name)
     repo_name = get_current_folder()
 
-    # Read the report.yaml file
-    with open('report.yaml', 'r', encoding='utf-8') as f:
-        content = f.read()
+    # Read the report.toml file
+    with open('report.toml', 'r', encoding='utf-8') as f:
+        data = toml.load(f)
 
-    # Replace the empty manuscript_id field with the repo name
-    content = content.replace('manuscript_id: ', f'manuscript_id: {repo_name}')
+    # Update the manuscript_id in the metadata section
+    if 'metadata' not in data:
+        data['metadata'] = {}
+    data['metadata']['manuscript_id'] = repo_name
 
-    # Write back to report.yaml
-    with open('report.yaml', 'w', encoding='utf-8') as f:
-        f.write(content)
+    # Write back to report.toml
+    with open('report.toml', 'w', encoding='utf-8') as f:
+        toml.dump(data, f)
 
 
 def _get_dcas_rule_answer(dcas_reference):

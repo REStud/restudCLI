@@ -1,0 +1,174 @@
+# Sample TOML Report Format
+# This replaces the YAML report format with TOML for better readability
+# and support for colons and special characters without escaping
+
+# TAG USAGE:
+# You can reference reusable text snippets from base-snippets.toml by name
+# For example, in comments or text fields, use the tag name with * prefix (e.g., "*DAS", "*cite_data", "*macosx")
+# and it will be automatically replaced with the full snippet text
+# See base-snippets.toml for all available tags
+
+[metadata]
+version = 3
+author = "Author Name"
+email = "email@example.com"
+name = "Editor Name"
+title = "Paper Title"
+manuscript_id = "12345"
+salutation = "Dr. Author"
+praise = "Thank you for your submission."
+
+# DCAS Rules - numbered 0-16 as per standard template
+[[dcas_rules]]
+number = 0
+name = "DAS_subject"
+description = "The paper is subject to the DAS, and reports to be subject to it"
+answer = "yes"
+text = ""
+comments = []
+
+[[dcas_rules]]
+number = 1
+name = "DAS"
+description = "A Data Availability Statement is provided with detailed enough information such that an independent researcher can replicate the steps needed to access the original data, including any limitations and the expected monetary and time cost of data access."
+answer = "yes"
+text = ""
+comments = [
+]
+
+[[dcas_rules]]
+number = 2
+name = "raw_data"
+description = "Raw data used in the research (primary data collected by the author and secondary data not otherwise available) is made publicly accessible. Exceptions are explained under Rule 1."
+answer = "yes"
+text = ""
+comments = []
+
+[[dcas_rules]]
+number = 3
+name = "analysis_data"
+description = "Analysis data is provided as part of the replication package unless they can be fully reproduced from accessible data within a reasonable time frame. Exceptions are explained under Rule 1."
+answer = "yes"
+text = ""
+comments = []
+
+[[dcas_rules]]
+number = 4
+name = "data_format"
+description = "The data files are provided in any format compatible with commonly used statistical package or software. Some journals require data files in open, non-proprietary formats."
+answer = "yes"
+text = ""
+comments = []
+
+[[dcas_rules]]
+number = 5
+name = "metadata"
+description = "Description of variables and their allowed values are publicly accessible."
+answer = "yes"
+text = ""
+comments = []
+
+[[dcas_rules]]
+number = 6
+name = "data_citation"
+description = "All data used in the paper are cited."
+answer = "no"
+text = ""
+comments = []
+
+[[dcas_rules]]
+number = 7
+name = "data_transformation"
+description = "Programs used to create any final and analysis data sets from raw data are included."
+answer = "yes"
+text = ""
+comments = []
+
+[[dcas_rules]]
+number = 8
+name = "analysis"
+description = "Programs producing the computational results (estimation, simulation, model solution, visualization) are included."
+answer = "yes"
+text = ""
+comments = []
+
+[[dcas_rules]]
+number = 9
+name = "code_format"
+description = "Code is provided in source format that can be directly interpreted or compiled by appropriate software."
+answer = "yes"
+text = ""
+comments = []
+
+[[dcas_rules]]
+number = 10
+name = "instruments"
+description = "If collecting original data through surveys or experiments, survey instruments or experiment instructions as well as details on subject selection are included."
+answer = "yes"
+text = ""
+comments = []
+
+[[dcas_rules]]
+number = 11
+name = "ethics"
+description = "If applicable, details are shared about ethics approval."
+answer = "yes"
+text = ""
+comments = []
+
+[[dcas_rules]]
+number = 12
+name = "prereg"
+description = "If applicable, pre-registration of the research is identified and cited."
+answer = "yes"
+text = ""
+comments = []
+
+[[dcas_rules]]
+number = 13
+name = "documentation"
+description = "A README document is included, containing a Data Availability Statement, listing all software and hardware dependencies and requirements (including the expected run time), and explaining how to reproduce the research results. The README follows the schema provided by the Social Science Data Editors' template README."
+answer = "yes"
+text = ""
+comments = []
+
+[[dcas_rules]]
+number = 14
+name = "location"
+description = "Data and programs are archived by the authors in the repositories deemed acceptable by the journal."
+answer = "yes"
+text = ""
+comments = []
+
+[[dcas_rules]]
+number = 15
+name = "license"
+description = "A license specifies the terms of use of code and data in the replication package. The license allows for replication by researchers unconnected to the original parties."
+answer = "yes"
+text = ""
+comments = []
+
+[[dcas_rules]]
+number = 16
+name = "omissions"
+description = "The README clearly indicates any omission of the required parts of the package due to legal requirements or limitations or other approved agreements."
+answer = "yes"
+text = ""
+comments = []
+
+[root]
+# Recommendations - additional items to address
+# Use tag names with * prefix to reference snippets (e.g., "*macosx", "*relative_path", etc.)
+recommendations = [
+  "*macosx",
+  "*relative_path"
+]
+
+# Requests - items needed from author
+requests = [
+  "Provide detailed instructions for installing R packages from the lockfile",
+  "Clarify the data access procedure for the confidential Medicare records"
+]
+
+
+

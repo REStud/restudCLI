@@ -1,0 +1,47 @@
+{{ metadata.email }}
+Data editor report, ReStud MS {{ metadata.manuscript_id }}
+
+Dear {{ metadata.salutation }},
+
+Thank you for submitting a revision of your replication materials for "{{ metadata.title }}".
+
+{{ metadata.praise }}
+
+Please address the following comments:
+
+{% if comments %}
+{% for comment in comments %}
+{{ loop.index }}. {{ comment.text }} [DCAS rule {{ comment.number }}]
+{% endfor %}
+{% endif %}
+
+{% if requests %}
+{% if requests|length == 1 %}
+Please make the following change:
+{% else %}
+Please make the following changes:
+{% endif %}
+{% for req in requests %}
+{{ (comments|length if comments else 0) + loop.index }}. {% if req is string %}{{ req }}{% else %}{{ req.text }}{% endif %}
+{% endfor %}
+{% endif %}
+
+In addition, please consider the following {% if recommendations|length == 1 %}recommendation{% else %}recommendations{% endif %} to ease reproducibility:
+
+{% if recommendations %}
+{% for rec in recommendations %}
+{{ chr(97 + loop.index0) }}) {% if rec is string %}{{ rec }}{% else %}{{ rec.text }}{% endif %}
+{% endfor %}
+{% endif %}
+
+After you have made these changes, please upload the revision to Zenodo and send me the link to the new version.
+When creating the new version, please edit the date of the Zenodo record to reflect when you have made the changes.
+
+Best regards,
+
+Andrea
+
+--
+Andrea Moro
+Data Editor, Review of Economic Studies
+andrea@andreamoro.net

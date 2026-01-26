@@ -1,0 +1,31 @@
+{{ metadata.email }}
+Data editor report, ReStud MS {{ metadata.manuscript_id }}
+
+Dear {{ metadata.salutation }},
+
+Congratulations on your acceptance to ReStud. You marked the paper as not subject to ReStud's Data Availability Policy. As you may know, it is ReStud's Data Editor practice to verify such classifications.
+
+Upon review, I noted that your manuscripts contains generated tables or figures. In my judgment, the paper is subject to the policy and should therefore provide a replication package. Please refer to our Data Availability Policy (https://restud.dataeditor.group/before/) section 8 for more information.
+
+{% if requests %}
+{% if requests|length == 1 %}
+Please make the following request:
+{% else %}
+Please address the following requests:
+{% endif %}
+{% for req in requests %}
+{{ loop.index }}. {% if req is string %}{{ req }}{% else %}{{ req.text }}{% endif %}
+{% endfor %}
+{% endif %}
+
+Please refer to our website for instruction on how to produce a replication package, https://restud.dataeditor.group/after/
+and let me know if you need any assistance during its preparation.
+
+Best,
+
+Andrea
+
+--
+Andrea Moro
+Data Editor, Review of Economic Studies
+andrea@andreamoro.net
