@@ -7,14 +7,14 @@ A Python command-line tool for managing REStud workflow operations, replacing th
 Install globally with uv:
 
 ```bash
-uv tool install git+ssh://git@github.com/REStud/workflow.git
+uv tool install git+ssh://git@github.com/REStud/restudCLI.git
 ```
 
 Or clone the repository and use `uv run` for development:
 
 ```bash
-git clone git@github.com:REStud/workflow.git
-cd workflow
+git clone git@github.com:REStud/restudCLI.git
+cd restudCLI
 uv run restud --help
 ```
 
@@ -26,7 +26,7 @@ The Python CLI provides identical functionality to the original fish function. A
 
 ```bash
 restud pull mypackage    # Same as before
-restud revise           # Same as before  
+restud revise           # Same as before
 restud accept           # Now includes Zenodo community acceptance
 ```
 
@@ -97,7 +97,7 @@ The most important tools we use during the replication process are:
 - tresorit/Data Editor tresor
 - Slack and emails
 - Watch replication videos
-  
+
 ## Github
 ![github](https://github.com/REStud/workflow/assets/47605029/407ec316-e184-4fd8-93dd-c6387ff88212)
 
@@ -134,7 +134,7 @@ If there are any questions during the onboarding process please reach out to us 
 
 # Replication workflow for REStud packages
 
-All steps considering downloads and 
+All steps considering downloads and
 The order of work with packages is the following:
 	1. orange packages = short reviews, in order of inflow (descending order in the columns)
  	2. red packages = urgent reviews, in order of inflow
