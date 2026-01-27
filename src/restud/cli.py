@@ -21,6 +21,7 @@ import click
 import requests
 import yaml
 import toml
+from tqdm import tqdm
 from rich.console import Console
 from rich.prompt import Prompt
 from rich.panel import Panel
@@ -754,11 +755,14 @@ def _get_zenodo_key():
 
 def _download_zenodo(url, api_key):
     """Download from Zenodo with API key."""
-    response = requests.get(f"{url}?access_token={api_key}")
+    response = requests.get(f"{url}?access_token={api_key}", stream=True)
     response.raise_for_status()
 
-    with open('repo.zip', 'wb') as f:
-        f.write(response.content)
+    total_size = int(response.headers.get('content-length', 0))
+    with open('repo.zip', 'wb') as f, tqdm(total=total_size, unit='B', unit_scale=True, desc='Downloading') as pbar:
+        for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
+            pbar.update(len(chunk))
 
     subprocess.run(['unzip', 'repo.zip'], check=True)
     os.remove('repo.zip')
@@ -769,11 +773,14 @@ def _download_zenodo_preview(url):
     cookie_value = _get_cookie()
     headers = {'Cookie': f'session={cookie_value}'}
 
-    response = requests.get(url, headers=headers)
+    response = requests.get(url, headers=headers, stream=True)
     response.raise_for_status()
 
-    with open('repo.zip', 'wb') as f:
-        f.write(response.content)
+    total_size = int(response.headers.get('content-length', 0))
+    with open('repo.zip', 'wb') as f, tqdm(total=total_size, unit='B', unit_scale=True, desc='Downloading') as pbar:
+        for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
+            pbar.update(len(chunk))
 
     subprocess.run(['unzip', 'repo.zip'], check=True)
     os.remove('repo.zip')
