@@ -386,6 +386,13 @@ def download(ctx, zenodo_url):
     branch = get_git_branch()
     if branch != 'author':
         click.echo('You must be on the author branch to download from Zenodo. Changing to author branch now.')
+        # Check for uncommitted changes to tracked files (ignore untracked files)
+        status_result = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, check=True)
+        # Filter out untracked files (lines starting with ??)
+        committed_changes = [line for line in status_result.stdout.split('\n') if line and not line.startswith('??')]
+        if committed_changes:
+            click.echo('[ERROR] You have uncommitted changes. Please commit or discard them before downloading.', err=True)
+            sys.exit(1)
         subprocess.run(['git', 'switch', 'author'], check=True)
 
     _empty_folder()
@@ -488,35 +495,20 @@ def download_withid(ctx, record_id):
 
     files = data['files']
 
-    # If only one file, use it automatically
-    if len(files) == 1:
-        filename = files[0]['key']
-        console.print(f"[green]Found 1 file: {filename}[/green]")
-    else:
-        # Multiple files, prompt user to choose
-        console.print(f"[yellow]Found {len(files)} files:[/yellow]")
-        for idx, file_info in enumerate(files, 1):
-            size_mb = file_info.get('size', 0) / (1024 * 1024)
-            console.print(f"  {idx}. {file_info['key']} ({size_mb:.2f} MB)")
+    # Download all files
+    console.print(f"[yellow]Found {len(files)} file(s):[/yellow]")
+    for idx, file_info in enumerate(files, 1):
+        size_mb = file_info.get('size', 0) / (1024 * 1024)
+        console.print(f"  {idx}. {file_info['key']} ({size_mb:.2f} MB)")
 
-        while True:
-            choice = Prompt.ask("\nSelect file number", default="1")
-            try:
-                choice_idx = int(choice) - 1
-                if 0 <= choice_idx < len(files):
-                    filename = files[choice_idx]['key']
-                    break
-                else:
-                    console.print(f"[red]Invalid choice. Please enter a number between 1 and {len(files)}[/red]")
-            except ValueError:
-                console.print("[red]Invalid input. Please enter a number[/red]")
+    for file_info in files:
+        filename = file_info['key']
+        # Construct the download URL and invoke the download command
+        download_url = f"https://zenodo.org/api/records/{record_id}/draft/files/{filename}/content"
+        console.print(f"[blue]Downloading {filename}...[/blue]")
 
-    # Construct the download URL and invoke the download command
-    download_url = f"https://zenodo.org/api/records/{record_id}/draft/files/{filename}/content"
-    console.print(f"[blue]Downloading {filename}...[/blue]")
-
-    # Invoke the download command with the constructed URL
-    ctx.invoke(download, zenodo_url=download_url)
+        # Invoke the download command with the constructed URL
+        ctx.invoke(download, zenodo_url=download_url)
 
 
 @cli.command()
