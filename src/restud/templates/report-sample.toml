@@ -12,7 +12,7 @@
 version = 3
 author = "Author Name"
 email = "email@example.com"
-name = "Editor Name"
+replicator = "Replicator Name"
 title = "Paper Title"
 manuscript_id = "12345"
 salutation = "Dr. Author"
@@ -160,14 +160,10 @@ comments = []
 # Recommendations - additional items to address
 # Use tag names with * prefix to reference snippets (e.g., "*macosx", "*relative_path", etc.)
 recommendations = [
-  "*macosx",
-  "*relative_path"
 ]
 
 # Requests - items needed from author
 requests = [
-  "Provide detailed instructions for installing R packages from the lockfile",
-  "Clarify the data access procedure for the confidential Medicare records"
 ]
 
 

@@ -3,11 +3,9 @@ Data editor report, ReStud MS {{ metadata.manuscript_id }}
 
 Dear {{ metadata.salutation }},
 
-Congratulations on your acceptance to ReStud, and thank you for sending the replication materials for "{{ metadata.title }}" to the Review.
+Congratulations on your acceptance to ReStud, and thank you for sending the replication materials for "{{ metadata.title }}" to the Review. To help our readers replicate your results, my team and I have reviewed the code, data and documentation you have submitted.
 
 {{ metadata.praise }}
-
-To help our readers replicate your results, my team and I have reviewed the code, data and documentation you have submitted.
 
 To comply with our Data Availability Policy (https://restud.dataeditor.group/before/), please address the following comments:
 
@@ -29,7 +27,6 @@ We also found additional issues, please address them as well:
 {% endfor %}
 {% endif %}
 
-
 {% if recommendations %}
 Finally, please consider the following {% if recommendations|length == 1 %}recommendation{% else %}recommendations{% endif %} to ease reproducibility:
 
@@ -37,6 +34,7 @@ Finally, please consider the following {% if recommendations|length == 1 %}recom
 {{ chr(97 + loop.index0) }}) {% if rec is string %}{{ rec }}{% else %}{{ rec.text }}{% endif %}
 {% endfor %}
 {% endif %}
+
 
 After you have made these changes, please upload the revision to Zenodo and send me the link to the new version.
 When creating the new version, please edit the date of the Zenodo record to reflect when you have made the changes.
