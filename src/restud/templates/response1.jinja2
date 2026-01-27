@@ -22,8 +22,8 @@ We also found an additional issue, please address it as well:
 We also found additional issues, please address them as well:
 {% endif %}
 {% for req in requests %}
-
 {{ (comments|length if comments else 0) + loop.index }}. {% if req is string %}{{ req }}{% else %}{{ req.text }}{% endif %}
+
 {% endfor %}
 {% endif %}
 

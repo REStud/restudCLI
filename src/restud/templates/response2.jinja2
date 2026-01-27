@@ -23,6 +23,7 @@ Please make the following changes:
 {% endif %}
 {% for req in requests %}
 {{ (comments|length if comments else 0) + loop.index }}. {% if req is string %}{{ req }}{% else %}{{ req.text }}{% endif %}
+
 {% endfor %}
 {% endif %}
 
