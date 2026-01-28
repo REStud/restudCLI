@@ -565,6 +565,9 @@ def download(ctx, record_id):
                 console.print(f'Created version{new_version} and pushed to remote')
 
         _save_zenodo_metadata(download_url)
+        subprocess.run(['git', 'add', '.zenodo'], check=True)
+        subprocess.run(['git', 'commit', '--amend', '--no-edit'], check=True)
+        subprocess.run(['git', 'push', '-f'], check=True)
     else:
         # Multiple files: download all, then process
         _download_multiple_files(record_id, files, zenodo_key)
@@ -939,6 +942,9 @@ def _download_multiple_files(record_id, files, zenodo_key):
             console.print(f'Created version{new_version} and pushed to remote')
 
     _save_zenodo_metadata(f"https://zenodo.org/api/records/{record_id}/draft")
+    subprocess.run(['git', 'add', '.zenodo'], check=True)
+    subprocess.run(['git', 'commit', '--amend', '--no-edit'], check=True)
+    subprocess.run(['git', 'push', '-f'], check=True)
 
 
 def _get_cookie():
@@ -1056,7 +1062,6 @@ def _commit_changes():
 
     # Always create/update .gitignore with common ignore patterns
     gitignore_entries = [
-        '.zenodo',
         '_MACOSX',
         '.DS_Store'
     ]
