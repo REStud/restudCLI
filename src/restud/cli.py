@@ -352,12 +352,6 @@ def new(ctx, package_name):
 
     subprocess.run(['git', 'checkout', '-b', 'author'], check=True)
 
-    # Create and commit report.toml
-    shutil.copy(get_template_path('report-sample.toml'), 'report.toml')
-    _add_manuscript_id_to_report()
-    subprocess.run(['git', 'add', 'report.toml'], check=True)
-    subprocess.run(['git', 'commit', '-m', 'initial report template'], check=True)
-
     # Try to push, if it fails because remote has content, pull first then push
     result = subprocess.run(['git', 'push', 'origin', 'author', '--set-upstream'], capture_output=True, text=True)
     if result.returncode != 0:
@@ -374,8 +368,8 @@ def new(ctx, package_name):
 @cli.command()
 @click.argument('zenodo_url')
 @click.pass_context
-def download(ctx, zenodo_url):
-    """Download package from Zenodo.
+def download_withurl(ctx, zenodo_url):
+    """Download package from Zenodo via URL.
 
     Downloads and imports replication package files from Zenodo (published or preview records).
     Extracts files, removes large files from git tracking, and creates version branches.
@@ -462,7 +456,7 @@ def download(ctx, zenodo_url):
 @cli.command()
 @click.argument('record_id')
 @click.pass_context
-def download_withid(ctx, record_id):
+def download(ctx, record_id):
     """Download package from Zenodo draft using record ID.
 
     Downloads from a Zenodo draft record by ID. Lists available files and prompts for
@@ -502,14 +496,78 @@ def download_withid(ctx, record_id):
         size_mb = file_info.get('size', 0) / (1024 * 1024)
         console.print(f"  {idx}. {file_info['key']} ({size_mb:.2f} MB)")
 
-    for file_info in files:
-        filename = file_info['key']
-        # Construct the download URL and invoke the download command
+    # If only one file, process directly
+    if len(files) == 1:
+        filename = files[0]['key']
         download_url = f"https://zenodo.org/api/records/{record_id}/draft/files/{filename}/content"
         console.print(f"[blue]Downloading {filename}...[/blue]")
 
-        # Invoke the download command with the constructed URL
-        ctx.invoke(download, zenodo_url=download_url)
+        branch = get_git_branch()
+        if branch != 'author':
+            click.echo('You must be on the author branch to download from Zenodo. Changing to author branch now.')
+            status_result = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, check=True)
+            committed_changes = [line for line in status_result.stdout.split('\n') if line and not line.startswith('??')]
+            if committed_changes:
+                click.echo('[ERROR] You have uncommitted changes. Please commit or discard them before downloading.', err=True)
+                sys.exit(1)
+            subprocess.run(['git', 'switch', 'author'], check=True)
+
+        _empty_folder()
+
+        if "preview" in download_url:
+            _download_zenodo_preview(download_url)
+        else:
+            _download_zenodo(download_url, zenodo_key)
+
+        _commit_changes()
+        _check_for_files()
+
+        status_result = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, check=True)
+        has_changes = status_result.stdout.strip() != ""
+
+        result = subprocess.run(['git', 'branch', '-a'], capture_output=True, text=True, check=True)
+        branches = [line.strip() for line in result.stdout.split('\n') if line.strip() and 'author' not in line and not line.strip().startswith('remotes/')]
+
+        if not branches:
+            # First download: no version branches exist
+            console.print('First download: creating version1')
+            subprocess.run(['git', 'commit', '-m', f'initial commit from zenodo'], check=True)
+            subprocess.run(['git', 'push', 'origin', 'author', '--set-upstream'], check=True)
+            subprocess.run(['git', 'checkout', '-b', 'version1'], check=True)
+            subprocess.run(['git', 'push', '-u', 'origin', 'version1'], check=True)
+            # Create initial report.toml template on version1
+            shutil.copy(get_template_path('report-sample.toml'), 'report.toml')
+            _add_manuscript_id_to_report()
+            subprocess.run(['git', 'add', 'report.toml'], check=True)
+            subprocess.run(['git', 'commit', '-m', 'initial report template'], check=True)
+            subprocess.run(['git', 'push'], check=True)
+            console.print('Switched to version1 and pushed to remote')
+        else:
+            # Subsequent downloads: version branches already exist
+            if not has_changes:
+                console.print('No changes detected. Files are already up to date.')
+                latest_version = _get_latest_version()
+                if latest_version > 0:
+                    subprocess.run(['git', 'checkout', f'version{latest_version}'], check=True)
+                    console.print(f'Switched to version{latest_version}')
+            else:
+                # There are changes: create new version
+                console.print('Changes detected. Creating new version.')
+                subprocess.run(['git', 'commit', '-m', f'update from zenodo'], check=True)
+                subprocess.run(['git', 'push'], check=True)
+
+                latest_version = _get_latest_version()
+                new_version = latest_version + 1
+
+                subprocess.run(['git', 'checkout', '-b', f'version{new_version}'], check=True)
+                _copy_report_from_previous_version(latest_version)
+                subprocess.run(['git', 'push', '-u', 'origin', f'version{new_version}'], check=True)
+                console.print(f'Created version{new_version} and pushed to remote')
+
+        _save_zenodo_metadata(download_url)
+    else:
+        # Multiple files: download all, then process
+        _download_multiple_files(record_id, files, zenodo_key)
 
 
 @cli.command()
@@ -784,6 +842,103 @@ def _download_zenodo_preview(url):
 
     subprocess.run(['unzip', 'repo.zip'], check=True)
     os.remove('repo.zip')
+
+
+def _download_multiple_files(record_id, files, zenodo_key):
+    """Download multiple files from Zenodo draft.
+
+    Downloads all files, unzips only .zip files, and keeps other files as-is.
+    Handles branch management and commits all changes together.
+    """
+    branch = get_git_branch()
+    if branch != 'author':
+        click.echo('You must be on the author branch to download from Zenodo. Changing to author branch now.')
+        status_result = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, check=True)
+        committed_changes = [line for line in status_result.stdout.split('\n') if line and not line.startswith('??')]
+        if committed_changes:
+            click.echo('[ERROR] You have uncommitted changes. Please commit or discard them before downloading.', err=True)
+            sys.exit(1)
+        subprocess.run(['git', 'switch', 'author'], check=True)
+
+    _empty_folder()
+
+    console = Console()
+
+    # Download all files
+    zip_files = []
+    for file_info in files:
+        filename = file_info['key']
+        download_url = f"https://zenodo.org/api/records/{record_id}/draft/files/{filename}/content"
+
+        console.print(f"[blue]Downloading {filename}...[/blue]")
+
+        if "preview" in download_url:
+            cookie_value = _get_cookie()
+            headers = {'Cookie': f'session={cookie_value}'}
+            response = requests.get(download_url, headers=headers, stream=True)
+        else:
+            response = requests.get(f"{download_url}?access_token={zenodo_key}", stream=True)
+
+        response.raise_for_status()
+
+        total_size = int(response.headers.get('content-length', 0))
+        with open(filename, 'wb') as f, tqdm(total=total_size, unit='B', unit_scale=True, desc=filename) as pbar:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+                pbar.update(len(chunk))
+
+        # Track zip files for extraction
+        if filename.endswith('.zip'):
+            zip_files.append(filename)
+
+    # Unzip only .zip files
+    for zip_file in zip_files:
+        console.print(f"[yellow]Extracting {zip_file}...[/yellow]")
+        subprocess.run(['unzip', zip_file], check=True)
+        os.remove(zip_file)
+
+    # Commit changes
+    _commit_changes()
+    _check_for_files()
+
+    # Check if there are staged changes to commit
+    status_result = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, check=True)
+    has_changes = status_result.stdout.strip() != ""
+
+    result = subprocess.run(['git', 'branch', '-a'], capture_output=True, text=True, check=True)
+    branches = [line.strip() for line in result.stdout.split('\n') if line.strip() and 'author' not in line and not line.strip().startswith('remotes/')]
+
+    if not branches:
+        # First download: no version branches exist
+        console.print('First download: creating version1')
+        subprocess.run(['git', 'commit', '-m', f'initial commit from zenodo'], check=True)
+        subprocess.run(['git', 'push', 'origin', 'author', '--set-upstream'], check=True)
+        subprocess.run(['git', 'checkout', '-b', 'version1'], check=True)
+        subprocess.run(['git', 'push', '-u', 'origin', 'version1'], check=True)
+        console.print('Switched to version1 and pushed to remote')
+    else:
+        # Subsequent downloads: version branches already exist
+        if not has_changes:
+            console.print('No changes detected. Files are already up to date.')
+            latest_version = _get_latest_version()
+            if latest_version > 0:
+                subprocess.run(['git', 'checkout', f'version{latest_version}'], check=True)
+                console.print(f'Switched to version{latest_version}')
+        else:
+            # There are changes: create new version
+            console.print('Changes detected. Creating new version.')
+            subprocess.run(['git', 'commit', '-m', f'update from zenodo'], check=True)
+            subprocess.run(['git', 'push'], check=True)
+
+            latest_version = _get_latest_version()
+            new_version = latest_version + 1
+
+            subprocess.run(['git', 'checkout', '-b', f'version{new_version}'], check=True)
+            _copy_report_from_previous_version(latest_version)
+            subprocess.run(['git', 'push', '-u', 'origin', f'version{new_version}'], check=True)
+            console.print(f'Created version{new_version} and pushed to remote')
+
+    _save_zenodo_metadata(f"https://zenodo.org/api/records/{record_id}/draft")
 
 
 def _get_cookie():
