@@ -8,6 +8,27 @@
 # and it will be automatically replaced with the full snippet text
 # See base-snippets.toml for all available tags
 
+# AVAILABLE SNIPPETS (one line reference):
+# *major = DCAS policy compliance required
+# *save_output = Save all output in standard formats (csv, xls, tex, log)
+# *stata_packages = List all Stata packages with installation instructions
+# *matlab_toolboxes = Mention all Matlab toolboxes used
+# *relative_path = Use relative paths instead of absolute paths
+# *cite_data = Add data citations in README and manuscript
+# *DAS = Include formal Data Availability Statement
+# *readme = Provide README in txt, markdown, or PDF
+# *include_data = Include raw data if license permits
+# *confidential_data = Answer confidential data questions
+# *macosx = Remove __MACOSX and .DS_STORE folders
+# *forward_slash = Use "/" not "\" in file names
+# *requirements = Describe computational requirements
+# *fortran = Describe Fortran compilation and dependencies
+# *instruments = Include experiment/survey documentation
+# *data_manipulation = Include all data manipulation code
+# *tresorit_upload = Use Tresorit link for confidential data sharing
+# *instructions = Provide clear replication instructions
+# *IPUMS = Use recommended IPUMS citation and include codebook
+
 [metadata]
 version = 3
 author = "Author Name"
