@@ -514,16 +514,19 @@ def download(ctx, record_id):
 
         _empty_folder()
 
-        if "preview" in download_url:
-            _download_zenodo_preview(download_url)
-        else:
-            _download_zenodo(download_url, zenodo_key)
+        _download_zenodo(download_url, zenodo_key)
 
+        # Create .zenodo metadata file and large files report with .gitignore
         _commit_changes()
         _check_for_files()
 
+        # Check if there are changes to the previous commit in the author branch
         status_result = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, check=True)
         has_changes = status_result.stdout.strip() != ""
+
+        # Save zenodo metadata after checking for changes
+        _save_zenodo_metadata(download_url)
+        subprocess.run(['git', 'add', '.zenodo'], check=True)
 
         result = subprocess.run(['git', 'branch', '-a'], capture_output=True, text=True, check=True)
         branches = [line.strip() for line in result.stdout.split('\n') if line.strip() and 'author' not in line and not line.strip().startswith('remotes/')]
@@ -551,23 +554,19 @@ def download(ctx, record_id):
                     subprocess.run(['git', 'checkout', f'version{latest_version}'], check=True)
                     console.print(f'Switched to version{latest_version}')
             else:
-                # There are changes: create new version
-                console.print('Changes detected. Creating new version.')
+                # There are changes: commit to author branch and create new version
+                console.print('Changes detected. Committing to author branch.')
                 subprocess.run(['git', 'commit', '-m', f'update from zenodo'], check=True)
                 subprocess.run(['git', 'push'], check=True)
 
                 latest_version = _get_latest_version()
                 new_version = latest_version + 1
 
+                console.print(f'Creating version{new_version}')
                 subprocess.run(['git', 'checkout', '-b', f'version{new_version}'], check=True)
                 _copy_report_from_previous_version(latest_version)
                 subprocess.run(['git', 'push', '-u', 'origin', f'version{new_version}'], check=True)
                 console.print(f'Created version{new_version} and pushed to remote')
-
-        _save_zenodo_metadata(download_url)
-        subprocess.run(['git', 'add', '.zenodo'], check=True)
-        subprocess.run(['git', 'commit', '--amend', '--no-edit'], check=True)
-        subprocess.run(['git', 'push', '-f'], check=True)
     else:
         # Multiple files: download all, then process
         _download_multiple_files(record_id, files, zenodo_key)
@@ -629,31 +628,29 @@ def report(ctx, branch_name, no_commit):
 
 
 @cli.command()
-@click.option('-andrea', 'branch', flag_value='andrea', help='Reinstall from remote andrea branch')
+@click.option('--branch', default='main', help='Remote branch to install from (default: main)')
 @click.option('--pip', 'use_pip', is_flag=True, help='Use pip instead of uv for installation')
 @click.option('--ssh', 'use_ssh', is_flag=True, help='Use SSH URL instead of HTTPS')
 @click.pass_context
 def reinstall(ctx, branch, use_pip, use_ssh):
     """Reinstall REStud from remote branch.
 
-    Reinstalls REStud from the specified remote branch (default: andrea).
+    Reinstalls REStud from the specified remote branch (default: main).
 
     Options:
-        -andrea       Reinstall from remote origin/andrea branch
-        --pip         Use pip instead of uv for installation
-        --ssh         Use SSH URL instead of HTTPS
+        --branch BRANCH  Remote branch to install from (default: main)
+        --pip            Use pip instead of uv for installation
+        --ssh            Use SSH URL instead of HTTPS
     """
-    if not branch:
-        branch = 'andrea'
 
     console = Console()
     console.print(f"[blue]Reinstalling REStud from origin/{branch}...[/blue]")
 
     try:
         if use_ssh:
-            git_url = f'git+ssh://git@github.com/REStud/workflow.git@{branch}#subdirectory=.'
+            git_url = f'git+ssh://git@github.com/REStud/restudCLI.git@{branch}#subdirectory=src'
         else:
-            git_url = f'git+https://github.com/REStud/workflow.git@{branch}#subdirectory=.'
+            git_url = f'git+https://github.com/REStud/restudCLI.git@{branch}#subdirectory=src'
 
         if use_pip:
             console.print("[dim]Using pip for installation...[/dim]")
