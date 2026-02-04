@@ -648,9 +648,9 @@ def reinstall(ctx, branch, use_pip, use_ssh):
 
     try:
         if use_ssh:
-            git_url = f'git+ssh://git@github.com/REStud/restudCLI.git@{branch}#subdirectory=src'
+            git_url = f'git+ssh://git@github.com/REStud/restudCLI.git@{branch}'
         else:
-            git_url = f'git+https://github.com/REStud/restudCLI.git@{branch}#subdirectory=src'
+            git_url = f'git+https://github.com/REStud/restudCLI.git@{branch}'
 
         if use_pip:
             console.print("[dim]Using pip for installation...[/dim]")
