@@ -27,9 +27,9 @@ Please make the following changes:
 {% endfor %}
 {% endif %}
 
+{% if recommendations %}
 In addition, please consider the following {% if recommendations|length == 1 %}recommendation{% else %}recommendations{% endif %} to ease reproducibility:
 
-{% if recommendations %}
 {% for rec in recommendations %}
 {{ chr(97 + loop.index0) }}) {% if rec is string %}{{ rec }}{% else %}{{ rec.text }}{% endif %}
 {% endfor %}
