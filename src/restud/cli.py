@@ -352,9 +352,25 @@ def new(ctx, package_name):
 
     subprocess.run(['git', 'checkout', '-b', 'author'], check=True)
 
+    # Ensure .gitignore with common macOS entries exists and is committed on initial author branch.
+    gitignore_path = os.path.join(os.getcwd(), '.gitignore')
+    if not os.path.exists(gitignore_path):
+        try:
+            with open(gitignore_path, 'w', encoding='utf-8') as f:
+                f.write('_MACOSX\n.DS_Store\n')
+            subprocess.run(['git', 'add', '.gitignore'], check=True)
+            try:
+                subprocess.run(['git', 'commit', '-m', 'Add .gitignore'], check=True)
+            except CalledProcessError:
+                # Commit may fail if git user.name/email are not set or other local config issues; continue.
+                pass
+        except Exception:
+            # If creating or committing .gitignore fails for any reason, continue without stopping repo creation.
+            pass
+
     # Try to push, if it fails because remote has content, pull first then push
     result = subprocess.run(['git', 'push', 'origin', 'author', '--set-upstream'], capture_output=True, text=True)
-    if result.returncode != 0:
+    if result.returncode != 0 and 'already exists' not in result.stderr:
         if 'rejected' in result.stderr or 'fetch first' in result.stderr:
             # Remote exists with content, fetch and merge
             click.echo("Repository already exists remotely. Pulling existing content...")
