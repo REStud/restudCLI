@@ -671,7 +671,7 @@ def reinstall(ctx, branch, use_pip, use_ssh):
         if use_pip:
             console.print("[dim]Using pip for installation...[/dim]")
             subprocess.run(
-                ['pip', 'install', '--force-reinstall', git_url],
+                ['pip', 'install', '--force-reinstall', '--user', git_url],
                 check=True
             )
         else:
