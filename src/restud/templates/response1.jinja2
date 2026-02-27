@@ -32,10 +32,10 @@ Finally, please consider the following {% if recommendations|length == 1 %}recom
 
 {% for rec in recommendations %}
 {{ chr(97 + loop.index0) }}) {% if rec is string %}{{ rec }}{% else %}{{ rec.text }}{% endif %}
+
+
 {% endfor %}
 {% endif %}
-
-
 After you have made these changes, please upload the revision to Zenodo and send me the link to the new version.
 When creating the new version, please edit the date of the Zenodo record to reflect when you have made the changes.
 
