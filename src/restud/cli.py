@@ -293,8 +293,7 @@ def accept(ctx, no_commit):
     with open('accept.txt', 'w') as f:
         f.write(acceptance)
 
-    # Copy to clipboard (macOS)
-    subprocess.run(['pbcopy'], input=acceptance.encode(), check=True)
+    print(acceptance)
 
     # Commit and tag (unless --no-commit flag is set)
     if not no_commit:
