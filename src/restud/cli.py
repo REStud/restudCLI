@@ -1088,20 +1088,9 @@ def _commit_changes():
         # Save report to file
         report_file = 'LARGE_FILES.txt'
         with open(report_file, 'w') as f:
-            f.write(f"Large Files Report (size limit: {size_limit / (1024 * 1024):.0f}MB)\n")
-            f.write("=" * 70 + "\n\n")
-
             for file_info in large_files_info:
-                prev_status = "Yes" if file_info['previously_ignored'] else "No"
-                now_status = "Yes" if file_info['now_ignored'] else "No"
-                f.write(f"File: {file_info['path']}\n")
-                f.write(f"  Size: {file_info['size_mb']:.2f} MB ({file_info['size_bytes']:,} bytes)\n")
-                f.write(f"  Previously in .gitignore: {prev_status}\n")
-                f.write(f"  Now in .gitignore: {now_status}\n\n")
-
-            f.write(f"\nTotal large files: {len(large_files_info)}\n")
-            total_size_mb = sum(f['size_mb'] for f in large_files_info)
-            f.write(f"Total size: {total_size_mb:.2f} MB\n")
+                prev_status = "NOT previously in gitignore" if not file_info['previously_ignored'] else "previously in gitignore"
+                f.write(f"{file_info['path']}, {file_info['size_mb']:.2f} MB, {prev_status}\n")
 
         # Display summary to user
         console.print(f"\n[yellow]Found {len(large_files)} files exceeding {size_limit / (1024 * 1024):.0f}MB limit[/yellow]")
