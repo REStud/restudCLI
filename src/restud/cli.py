@@ -612,10 +612,12 @@ def report(ctx, branch_name, no_commit):
 
 
 @cli.command(name='snippet')
-@click.argument('tag')
+@click.argument('tag', required=False, default=None)
 @click.pass_context
 def snippet_cmd(ctx, tag):
     """Print the text of a snippet from base-snippets.toml.
+
+    Without arguments, lists all available snippet names.
 
     Args:
         TAG: Snippet tag name, with or without the leading * (e.g. DAS or *DAS)
@@ -624,6 +626,10 @@ def snippet_cmd(ctx, tag):
     with open(snippets_path, 'r', encoding='utf-8') as f:
         data = toml.load(f)
     snippets = data.get('snippets', {})
+
+    if tag is None:
+        click.echo('Available snippets: ' + ', '.join(k.lstrip('*') for k in sorted(snippets)))
+        return
 
     # Normalise: ensure tag starts with *
     key = tag if tag.startswith('*') else f'*{tag}'
