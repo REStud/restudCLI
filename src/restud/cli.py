@@ -611,6 +611,31 @@ def report(ctx, branch_name, no_commit):
         console.print("[yellow]Report generated without committing. Files ready for review.[/yellow]")
 
 
+@cli.command(name='snippet')
+@click.argument('tag')
+@click.pass_context
+def snippet_cmd(ctx, tag):
+    """Print the text of a snippet from base-snippets.toml.
+
+    Args:
+        TAG: Snippet tag name, with or without the leading * (e.g. DAS or *DAS)
+    """
+    snippets_path = get_template_path('base-snippets.toml')
+    with open(snippets_path, 'r', encoding='utf-8') as f:
+        data = toml.load(f)
+    snippets = data.get('snippets', {})
+
+    # Normalise: ensure tag starts with *
+    key = tag if tag.startswith('*') else f'*{tag}'
+
+    if key not in snippets:
+        available = ', '.join(k.lstrip('*') for k in sorted(snippets))
+        click.echo(f"Unknown snippet '{key}'. Available: {available}", err=True)
+        return
+
+    click.echo(snippets[key])
+
+
 @cli.command()
 @click.option('--branch', default='main', help='Remote branch to install from (default: main)')
 @click.option('--pip', 'use_pip', is_flag=True, help='Use pip instead of uv for installation')
