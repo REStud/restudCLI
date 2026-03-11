@@ -666,7 +666,7 @@ def reinstall(ctx, branch, use_pip, use_ssh):
             env = os.environ.copy()
             env['TMPDIR'] = '/tmp'
             subprocess.run(
-                ['pip', 'install', '--force-reinstall', '--user', git_url],
+                ['pip', 'install', '--upgrade', '--no-cache-dir', '--user', git_url],
                 check=True,
                 env=env
             )
