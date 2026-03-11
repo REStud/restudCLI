@@ -17,6 +17,12 @@ except ImportError:
     # Fallback for Python < 3.9
     from importlib_resources import files
 
+try:
+    from importlib.metadata import version as _pkg_version
+    __version__ = _pkg_version('restud')
+except Exception:
+    __version__ = 'unknown'
+
 import click
 import requests
 import yaml
@@ -163,9 +169,10 @@ def rich_to_html_prompt(rich_markup):
 
 
 @click.group()
+@click.version_option(__version__, prog_name='restud')
 @click.pass_context
 def cli(ctx):
-    """REStud workflow management CLI tool. """
+    """REStud workflow management CLI tool."""
     ctx.ensure_object(dict)
 
 @cli.command()
@@ -196,56 +203,12 @@ def pull(ctx, package_name):
 
 
 @cli.command()
-@click.option('--no-commit', is_flag=True, help='Generate revision response without committing and pushing')
-@click.pass_context
-def revise(ctx, no_commit):
-    """Generate revision response.
-
-    Creates a revision response based on the current version branch and report.yaml.
-    Automatically selects the appropriate template, commits changes, and copies to clipboard.
-    Works on version1 or version2+ branches with different templates.
-
-    Options:
-        --no-commit    Generate response without committing and pushing
-    """
-    # Get current branch
-    result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], capture_output=True, text=True, check=True)
-    branch_name = result.stdout.strip()
-
-    # Select email template based on version
-    if branch_name == "version1":
-        email_template = get_template_path('response1.txt')
-    else:
-        email_template = get_template_path('response2.txt')
-
-    # Generate response
-    tags_file = get_template_path('template-answers.yaml')
-    response = generate_report(email_template, 'report.yaml', tags_file)
-
-    # Write response to file
-    with open('response.txt', 'w') as f:
-        f.write(response)
-
-    # Copy to clipboard (macOS)
-    subprocess.run(['pbcopy'], input=response.encode(), check=True)
-
-    # Commit changes (unless --no-commit flag is set)
-    if not no_commit:
-        subprocess.run(['git', 'add', 'report.yaml', 'response.txt'], check=True)
-        subprocess.run(['git', 'commit', '-m', 'edit report'], check=True)
-        subprocess.run(['git', 'push'], check=True)
-    else:
-        console = Console()
-        console.print("[yellow]Revision response generated without committing. Files ready for review.[/yellow]")
-
-
-@cli.command()
 @click.option('--no-commit', is_flag=True, help='Generate acceptance message without committing and pushing')
 @click.pass_context
 def accept(ctx, no_commit):
     """Generate acceptance message.
 
-    Creates an acceptance message based on the current version branch and report.toml.
+    Creates an acceptance message based on the current version branch and report.aml.
     Automatically selects the appropriate Jinja2 template, commits changes, tags as 'accepted',
     and copies to clipboard (unless --no-commit is used).
 
@@ -318,7 +281,7 @@ def accept(ctx, no_commit):
 def new(ctx, package_name):
     """Create new replication package.
 
-    Initializes a new local repository with report.toml template, creates a remote GitHub
+    Initializes a new local repository with report.aml template, creates a remote GitHub
     repository in the restud-replication-packages organization, and sets up the 'author' branch.
 
     Args:
@@ -595,7 +558,7 @@ def download(ctx, record_id):
 def report(ctx, branch_name, no_commit):
     """Generate and commit report.
 
-    Generates response.txt from report.toml using the appropriate Jinja2 template based on
+    Generates response.txt from report.aml using the appropriate Jinja2 template based on
     the branch version. Commits and pushes changes (unless --no-commit).
 
     Args:
@@ -781,7 +744,7 @@ def shell(ctx):
                         ctx.invoke(cmd, zenodo_url=parts[1])
                     elif command_name == 'report' and len(parts) > 1:
                         ctx.invoke(cmd, branch_name=parts[1])
-                    elif command_name in ['revise', 'accept']:
+                    elif command_name == 'accept':
                         ctx.invoke(cmd)
                     else:
                         console.print(f"[yellow]Usage: {command_name} [arguments][/yellow]")
