@@ -663,9 +663,12 @@ def reinstall(ctx, branch, use_pip, use_ssh):
 
         if use_pip:
             console.print("[dim]Using pip for installation...[/dim]")
+            env = os.environ.copy()
+            env['TMPDIR'] = '/tmp'
             subprocess.run(
                 ['pip', 'install', '--force-reinstall', '--user', git_url],
-                check=True
+                check=True,
+                env=env
             )
         else:
             console.print("[dim]Using uv for installation...[/dim]")
