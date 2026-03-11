@@ -1,0 +1,52 @@
+# Sample AML Report Format
+
+[metadata]
+version = 3
+author = "Author_Name"
+email = "email@example.com"
+replicator = "Replicator_Name"
+title = "Paper Title"
+manuscript_id = "12345"
+salutation = "name"
+
+# start and/or summarize your report here
+[beginning]
+
+# list requests here, one per line, starting with a dash (-)
+# requests may be multiline, e.g. if you/paste error messages
+[requests]
+
+# list recommendations here, one per line, starting with a dash (-)
+[recommendations]
+
+# anything to add at the end before salutation goes here
+[endmessage]
+
+# TAG USAGE:
+# Use tag names with * prefix to reference snippets (e.g., "*macosx", "*relative_path", etc.)
+# You can reference reusable text snippets from base-snippets.toml by name
+# For example, in comments or text fields, use the tag name with * prefix (e.g., "*DAS", "*cite_data", "*macosx")
+# and it will be automatically replaced with the full snippet text
+# See base-snippets.toml for all available tags
+
+# AVAILABLE SNIPPETS (one line reference):
+# *major = DCAS policy compliance required
+# *save_output = Save all output in standard formats (csv, xls, tex, log)
+# *stata_packages = List all Stata packages with installation instructions
+# *matlab_toolboxes = Mention all Matlab toolboxes used
+# *relative_path = Use relative paths instead of absolute paths
+# *cite_data = Add data citations in README and manuscript
+# *DAS = Include formal Data Availability Statement
+# *readme = Provide README in txt, markdown, or PDF
+# *include_data = Include raw data if license permits
+# *confidential_data = Answer confidential data questions
+# *macosx = Remove __MACOSX and .DS_STORE folders
+# *forward_slash = Use "/" not "\" in file names
+# *requirements = Describe computational requirements
+# *fortran = Describe Fortran compilation and dependencies
+# *instruments = Include experiment/survey documentation
+# *data_manipulation = Include all data manipulation code
+# *tresorit_upload = Use Tresorit link for confidential data sharing
+# *instructions = Provide clear replication instructions
+# *IPUMS = Use recommended IPUMS citation and include codebook
+

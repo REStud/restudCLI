@@ -33,6 +33,7 @@ from prompt_toolkit.completion import PathCompleter
 from prompt_toolkit.key_binding import KeyBindings
 
 from restud.render_jinja2 import ReportRenderer
+from restud.render_aml import AMLReportRenderer
 
 # GitHub organization for replication packages
 GITHUB_ORG = 'restud-replication-packages'
@@ -164,23 +165,8 @@ def rich_to_html_prompt(rich_markup):
 @click.group()
 @click.pass_context
 def cli(ctx):
-    """REStud workflow management CLI tool.
-
-    Commands:
-      pull              Pull a replication package from GitHub
-      new               Create a new replication package
-      download          Download and import package files from Zenodo
-      download-withid   Download from Zenodo draft using record ID
-      revise            Generate revision response and push changes
-      report            Generate and commit report with optional branch
-      accept            Generate acceptance message with optional commit
-      shell             Start interactive REStud shell with command history
-
-    Use 'restud COMMAND --help' for more information on a command."""
+    """REStud workflow management CLI tool. """
     ctx.ensure_object(dict)
-
-
-
 
 @cli.command()
 @click.argument('package_name')
@@ -270,15 +256,7 @@ def accept(ctx, no_commit):
     result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], capture_output=True, text=True, check=True)
     branch_name = result.stdout.strip()
 
-    # Initialize renderer
     templates_dir = get_template_path('.')
-    renderer = ReportRenderer(templates_dir)
-
-    # Validate report.toml
-    is_valid, msg = renderer.validate_toml('report.toml')
-    if not is_valid:
-        click.echo(f"[ERROR] {msg}", err=True)
-        return
 
     # Select template based on version
     if branch_name == "version1":
@@ -286,8 +264,21 @@ def accept(ctx, no_commit):
     else:
         template_name = 'accept2.jinja2'
 
-    # Generate acceptance message
-    acceptance = renderer.generate_report('report.toml', template_name)
+    # Prefer report.aml if present, fall back to report.toml
+    if os.path.exists('report.aml'):
+        renderer = AMLReportRenderer(templates_dir)
+        is_valid, msg = renderer.validate_aml('report.aml')
+        if not is_valid:
+            click.echo(f"[ERROR] {msg}", err=True)
+            return
+        acceptance = renderer.generate_report('report.aml', template_name)
+    else:
+        renderer = ReportRenderer(templates_dir)
+        is_valid, msg = renderer.validate_toml('report.toml')
+        if not is_valid:
+            click.echo(f"[ERROR] {msg}", err=True)
+            return
+        acceptance = renderer.generate_report('report.toml', template_name)
 
     # Write acceptance to file
     with open('accept.txt', 'w') as f:
@@ -378,6 +369,16 @@ def new(ctx, package_name):
             subprocess.run(['git', 'push', 'origin', 'author'], check=True)
         else:
             raise CalledProcessError(result.returncode, result.args)
+
+    # Create version1 branch with report.aml template
+    subprocess.run(['git', 'checkout', '-b', 'version1'], check=True)
+    subprocess.run(['git', 'push', '-u', 'origin', 'version1'], check=True)
+    shutil.copy(get_template_path('report.aml'), 'report.aml')
+    _add_manuscript_id_to_report()
+    subprocess.run(['git', 'add', 'report.aml'], check=True)
+    subprocess.run(['git', 'commit', '-m', 'initial report template'], check=True)
+    subprocess.run(['git', 'push'], check=True)
+    click.echo(f"Created version1 with report.aml for {package_name}")
 
 
 @cli.command()
@@ -535,13 +536,13 @@ def download(ctx, record_id):
         _commit_changes()
         _check_for_files()
 
+        # Save zenodo metadata before checking for changes so it is included
+        _save_zenodo_metadata(download_url)
+        subprocess.run(['git', 'add', '.zenodo'], check=True)
+
         # Check if there are changes to the previous commit in the author branch
         status_result = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, check=True)
         has_changes = status_result.stdout.strip() != ""
-
-        # Save zenodo metadata after checking for changes
-        _save_zenodo_metadata(download_url)
-        subprocess.run(['git', 'add', '.zenodo'], check=True)
 
         result = subprocess.run(['git', 'branch', '-a'], capture_output=True, text=True, check=True)
         branches = [line.strip() for line in result.stdout.split('\n') if line.strip() and 'author' not in line and not line.strip().startswith('remotes/')]
@@ -553,10 +554,10 @@ def download(ctx, record_id):
             subprocess.run(['git', 'push', 'origin', 'author', '--set-upstream'], check=True)
             subprocess.run(['git', 'checkout', '-b', 'version1'], check=True)
             subprocess.run(['git', 'push', '-u', 'origin', 'version1'], check=True)
-            # Create initial report.toml template on version1
-            shutil.copy(get_template_path('report-sample.toml'), 'report.toml')
+            # Create initial report.aml template on version1
+            shutil.copy(get_template_path('report.aml'), 'report.aml')
             _add_manuscript_id_to_report()
-            subprocess.run(['git', 'add', 'report.toml'], check=True)
+            subprocess.run(['git', 'add', 'report.aml'], check=True)
             subprocess.run(['git', 'commit', '-m', 'initial report template'], check=True)
             subprocess.run(['git', 'push'], check=True)
             console.print('Switched to version1 and pushed to remote')
@@ -608,33 +609,38 @@ def report(ctx, branch_name, no_commit):
         result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], capture_output=True, text=True, check=True)
         branch_name = result.stdout.strip()
 
-    # Initialize renderer
     templates_dir = get_template_path('.')
-    renderer = ReportRenderer(templates_dir)
-
-    # Validate report.toml
-    is_valid, msg = renderer.validate_toml('report.toml')
-    if not is_valid:
-        click.echo(f"[ERROR] {msg}", err=True)
-        return
 
     # Select template based on branch version
     if branch_name == "version1":
         template_name = 'response1.jinja2'
-        click.echo(f"[DEBUG] Selected template: response1.jinja2 (version1)", err=True)
     else:
         template_name = 'response2.jinja2'
-        click.echo(f"[DEBUG] Selected template: response2.jinja2 (default)", err=True)
 
-    # Generate response
-    response = renderer.generate_report('report.toml', template_name)
+    # Prefer report.aml if present, fall back to report.toml
+    if os.path.exists('report.aml'):
+        renderer = AMLReportRenderer(templates_dir)
+        is_valid, msg = renderer.validate_aml('report.aml')
+        if not is_valid:
+            click.echo(f"[ERROR] {msg}", err=True)
+            return
+        response = renderer.generate_report('report.aml', template_name)
+        report_file = 'report.aml'
+    else:
+        renderer = ReportRenderer(templates_dir)
+        is_valid, msg = renderer.validate_toml('report.toml')
+        if not is_valid:
+            click.echo(f"[ERROR] {msg}", err=True)
+            return
+        response = renderer.generate_report('report.toml', template_name)
+        report_file = 'report.toml'
 
     with open('response.txt', 'w') as f:
         f.write(response)
 
     # Commit changes (unless --no-commit flag is set)
     if not no_commit:
-        subprocess.run(['git', 'add', 'report.toml', 'response.txt'], check=True)
+        subprocess.run(['git', 'add', report_file, 'response.txt'], check=True)
         subprocess.run(['git', 'commit', '-m', 'update report'], check=True)
         subprocess.run(['git', 'push', 'origin', branch_name], check=True)
     else:
@@ -916,6 +922,10 @@ def _download_multiple_files(record_id, files, zenodo_key):
     _commit_changes()
     _check_for_files()
 
+    # Save zenodo metadata before checking for changes so it is included
+    _save_zenodo_metadata(f"https://zenodo.org/api/records/{record_id}/draft")
+    subprocess.run(['git', 'add', '.zenodo'], check=True)
+
     # Check if there are staged changes to commit
     status_result = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, check=True)
     has_changes = status_result.stdout.strip() != ""
@@ -930,6 +940,12 @@ def _download_multiple_files(record_id, files, zenodo_key):
         subprocess.run(['git', 'push', 'origin', 'author', '--set-upstream'], check=True)
         subprocess.run(['git', 'checkout', '-b', 'version1'], check=True)
         subprocess.run(['git', 'push', '-u', 'origin', 'version1'], check=True)
+        # Create initial report.aml template on version1
+        shutil.copy(get_template_path('report.aml'), 'report.aml')
+        _add_manuscript_id_to_report()
+        subprocess.run(['git', 'add', 'report.aml'], check=True)
+        subprocess.run(['git', 'commit', '-m', 'initial report template'], check=True)
+        subprocess.run(['git', 'push'], check=True)
         console.print('Switched to version1 and pushed to remote')
     else:
         # Subsequent downloads: version branches already exist
@@ -952,11 +968,6 @@ def _download_multiple_files(record_id, files, zenodo_key):
             _copy_report_from_previous_version(latest_version)
             subprocess.run(['git', 'push', '-u', 'origin', f'version{new_version}'], check=True)
             console.print(f'Created version{new_version} and pushed to remote')
-
-    _save_zenodo_metadata(f"https://zenodo.org/api/records/{record_id}/draft")
-    subprocess.run(['git', 'add', '.zenodo'], check=True)
-    subprocess.run(['git', 'commit', '--amend', '--no-edit'], check=True)
-    subprocess.run(['git', 'push', '-f'], check=True)
 
 
 def _get_cookie():
@@ -1144,32 +1155,57 @@ def _get_latest_version():
     return max(versions) if versions else 0
 
 
+def _comment_out_sections(content: str) -> str:
+    """Comment out all lines inside [requests] and [recommendations] sections."""
+    lines = content.split('\n')
+    result = []
+    in_section = False
+    section_re = re.compile(r'^\[(requests|recommendations)\]\s*$', re.IGNORECASE)
+    next_section_re = re.compile(r'^\[')
+
+    for line in lines:
+        if section_re.match(line):
+            in_section = True
+            result.append(line)
+        elif in_section and next_section_re.match(line) and not section_re.match(line):
+            in_section = False
+            result.append(line)
+        elif in_section and line.strip() and not line.startswith('#'):
+            result.append('# ' + line)
+        else:
+            result.append(line)
+
+    return '\n'.join(result)
+
+
 def _copy_report_from_previous_version(latest_version):
-    """Copy report.toml from the previous version branch and commit it."""
+    """Copy report.aml (or report.toml) from the previous version branch and commit it.
+
+    Recommendations and requests from the previous version are kept but commented out.
+    """
     previous_branch = f'version{latest_version}'
 
     try:
-        # Check if report.toml exists on the previous version branch
-        result = subprocess.run(
-            ['git', 'show', f'{previous_branch}:report.toml'],
-            capture_output=True,
-            text=True,
-            check=False
-        )
+        # Try report.aml first, then fall back to report.toml
+        for report_file in ('report.aml', 'report.toml'):
+            result = subprocess.run(
+                ['git', 'show', f'{previous_branch}:{report_file}'],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            if result.returncode == 0:
+                content = _comment_out_sections(result.stdout)
+                with open(report_file, 'w') as f:
+                    f.write(content)
+                subprocess.run(['git', 'add', report_file], check=True)
+                subprocess.run(['git', 'commit', '-m', f'copy {report_file} from {previous_branch}'], check=True)
+                click.echo(f'Copied {report_file} from {previous_branch}')
+                return
 
-        if result.returncode == 0:
-            # Write the report.toml from previous branch
-            with open('report.toml', 'w') as f:
-                f.write(result.stdout)
-
-            # Stage and commit the report.toml
-            subprocess.run(['git', 'add', 'report.toml'], check=True)
-            subprocess.run(['git', 'commit', '-m', f'copy report.toml from {previous_branch}'], check=True)
-            click.echo(f'Copied report.toml from {previous_branch}')
-        else:
-            click.echo(f'Warning: report.toml not found on {previous_branch}')
+        click.echo(f'Warning: no report file found on {previous_branch}')
     except Exception as e:
-        click.echo(f'Warning: Could not copy report.toml from previous version: {e}')
+        click.echo(f'Warning: Could not copy report from previous version: {e}')
 
 
 def _save_zenodo_metadata(url):
@@ -1187,22 +1223,26 @@ def _save_zenodo_metadata(url):
 
 
 def _add_manuscript_id_to_report():
-    """Add manuscript_id to report.toml from the GitHub repo name."""
-    # Get the current folder name (which is the repo name)
+    """Add manuscript_id from the current folder name into report.aml or report.toml."""
     repo_name = get_current_folder()
+    import re
 
-    # Read the report.toml file
-    with open('report.toml', 'r', encoding='utf-8') as f:
-        data = toml.load(f)
+    # Prefer report.aml
+    report_file = 'report.aml' if os.path.exists('report.aml') else 'report.toml'
 
-    # Update the manuscript_id in the metadata section
-    if 'metadata' not in data:
-        data['metadata'] = {}
-    data['metadata']['manuscript_id'] = repo_name
+    with open(report_file, 'r', encoding='utf-8') as f:
+        content = f.read()
 
-    # Write back to report.toml
-    with open('report.toml', 'w', encoding='utf-8') as f:
-        toml.dump(data, f)
+    # Replace the manuscript_id value in-place to preserve comments
+    content = re.sub(
+        r'^(manuscript_id\s*=\s*).*$',
+        lambda m: f'{m.group(1)}"{repo_name}"',
+        content,
+        flags=re.MULTILINE
+    )
+
+    with open(report_file, 'w', encoding='utf-8') as f:
+        f.write(content)
 
 
 def _get_dcas_rule_answer(dcas_reference):
