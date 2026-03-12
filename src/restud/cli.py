@@ -279,6 +279,8 @@ def new(ctx, package_name):
 
     Initializes a new local repository with report.aml template, creates a remote GitHub
     repository in the restud-replication-packages organization, and sets up the 'author' branch.
+    Saves a minimal .gitignore with common macOS entries and a report.aml template and commits them.
+    Pushes the initial commit to the remote.
 
     Args:
         PACKAGE_NAME: Name for the new replication package
@@ -287,10 +289,16 @@ def new(ctx, package_name):
     os.chdir(package_name)
     subprocess.run(['git', 'init'], check=True)
 
-    # Try to create the repo, but continue if it already exists
-    result = subprocess.run(['gh', 'repo', 'create', f'{GITHUB_ORG}/{package_name}', '--private', '--team', 'Replicators'], capture_output=True, text=True)
-    if result.returncode != 0 and 'already exists' not in result.stderr:
-        click.echo(f"Error creating repository: {result.stderr}", err=True)
+    # Check if remote repo already exists; if so, abort and suggest pull
+    check = subprocess.run(['gh', 'repo', 'view', f'{GITHUB_ORG}/{package_name}'], capture_output=True, text=True)
+    if check.returncode == 0:
+        click.echo(f"[ERROR] Remote repository {GITHUB_ORG}/{package_name} already exists.", err=True)
+        click.echo(f"Use 'restud pull {package_name}' to clone and set it up locally.", err=True)
+        return
+    else:
+        result = subprocess.run(['gh', 'repo', 'create', f'{GITHUB_ORG}/{package_name}', '--private', '--team', 'Replicators'], capture_output=True, text=True)
+        if result.returncode != 0:
+            click.echo(f"Error creating repository: {result.stderr}", err=True)
 
     # Add or update the remote
     remote_url = f'git@github.com:{GITHUB_ORG}/{package_name}.git'
@@ -651,15 +659,7 @@ def snippet_cmd(ctx, tag):
 @click.option('--accre', 'accre', is_flag=True, help='Use options amenable to ACCRE: --pip --ssh')
 @click.pass_context
 def reinstall(ctx, branch, use_pip, use_ssh, accre):
-    """Reinstall REStud from remote branch.
-
-    Reinstalls REStud from the specified remote branch (default: main).
-
-    Options:
-        --branch BRANCH  Remote branch to install from (default: main)
-        --pip            Use pip instead of uv for installation
-        --ssh            Use SSH URL instead of HTTPS
-        --accre          Use options amenable to ACCRE: --pip --ssh
+    """Reinstall restud cli from remote branch.
     """
 
     console = Console()
