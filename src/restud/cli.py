@@ -981,12 +981,18 @@ def _get_cookie():
     if not os.path.exists(cookie_file):
         _create_cookie()
 
+    if not os.path.exists(cookie_file):
+        raise RuntimeError("No Zenodo session cookie found. Cannot accept into community.")
+
     with open(cookie_file, 'r') as f:
         cookie_data = json.load(f)
 
     # Check if cookie is expired
     from datetime import datetime
-    exp_date = datetime.strptime(cookie_data['exp_date'], '%Y-%m-%d')
+    try:
+        exp_date = datetime.strptime(cookie_data['exp_date'], '%Y-%m-%d')
+    except (ValueError, KeyError):
+        exp_date = datetime.min  # treat missing/invalid date as expired
     if datetime.now() > exp_date:
         _create_cookie()
         with open(cookie_file, 'r') as f:
@@ -1303,13 +1309,21 @@ def _check_community(ctx):
 
 def _community_accept(zenodo_id):
     """Accept package into REStud community."""
-    api_key = _get_zenodo_key()
-
-    cookie_value = _get_cookie()
-    headers = {'Cookie': f'session={cookie_value}'}
-
-    url = _get_accept_request(zenodo_id, api_key, headers)
-    requests.post(f"{url}?access_token={api_key}", headers=headers)
+    console = Console()
+    try:
+        api_key = _get_zenodo_key()
+        cookie_value = _get_cookie()
+        headers = {'Cookie': f'session={cookie_value}'}
+        url = _get_accept_request(zenodo_id, api_key, headers)
+        response = requests.post(f"{url}?access_token={api_key}", headers=headers)
+        if response.status_code in (200, 201, 202, 204):
+            console.print("[green]Successfully accepted into REStud community.[/green]")
+        else:
+            console.print(f"[red]Community accept request failed (HTTP {response.status_code}):[/red] {response.text}")
+    except IndexError:
+        console.print(f"[red]Could not find a pending community request for record {zenodo_id}.[/red]")
+    except Exception as e:
+        console.print(f"[red]Failed to accept into community: {e}[/red]")
 
 def _get_accept_request(zenodo_id, api_key, headers):
     """Get the acceptance request URL for a Zenodo record."""
