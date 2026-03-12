@@ -44,6 +44,11 @@ from restud.render_aml import AMLReportRenderer
 # GitHub organization for replication packages
 GITHUB_ORG = 'restud-replication-packages'
 
+# Admin repo for package tracking (accessed via GitHub API only — no local clone)
+ADMIN_ORG = 'REStud'
+ADMIN_REPO = 'packages-admin'
+ADMIN_FILE = 'packages.toml'
+
 
 def get_template_path(filename):
     """Get path to template file from package resources."""
@@ -147,6 +152,173 @@ def create_shell_prompt():
     return " ".join(prompt_parts) + " [bold]>[/bold] "
 
 
+# ---------------------------------------------------------------------------
+# Admin repo / package tracking helpers
+# ---------------------------------------------------------------------------
+
+def _today():
+    from datetime import date
+    return date.today().isoformat()
+
+
+def _get_replicator():
+    """Return GitHub username, falling back to $USER."""
+    try:
+        r = subprocess.run(['gh', 'api', 'user', '--jq', '.login'], capture_output=True, text=True)
+        name = r.stdout.strip()
+        return name if name else os.environ.get('USER', 'unknown')
+    except Exception:
+        return os.environ.get('USER', 'unknown')
+
+
+def _gh_api_get_packages():
+    """Fetch packages.toml content from GitHub API. Returns (packages_dict, sha). No data written to disk."""
+    import base64
+    result = subprocess.run(
+        ['gh', 'api', f'repos/{ADMIN_ORG}/{ADMIN_REPO}/contents/{ADMIN_FILE}'],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"Could not fetch {ADMIN_FILE}: {result.stderr.strip()}")
+    data = json.loads(result.stdout)
+    content = base64.b64decode(data['content']).decode('utf-8')
+    packages = toml.loads(content).get('packages', {})
+    return packages, data['sha']
+
+
+def _gh_api_put_packages(packages: dict, sha: str, message: str):
+    """Push updated packages.toml to GitHub API. No data written to disk."""
+    import base64
+    content_str = toml.dumps({'packages': packages})
+    content_b64 = base64.b64encode(content_str.encode('utf-8')).decode('ascii')
+    result = subprocess.run(
+        ['gh', 'api', f'repos/{ADMIN_ORG}/{ADMIN_REPO}/contents/{ADMIN_FILE}',
+         '-X', 'PUT',
+         '-f', f'message={message}',
+         '-f', f'content={content_b64}',
+         '-f', f'sha={sha}'],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"Could not push {ADMIN_FILE}: {result.stderr.strip()}")
+
+
+def _pkg_record(packages: dict, pkg_id: str) -> dict:
+    """Return existing record or a fresh one."""
+    if pkg_id not in packages:
+        packages[pkg_id] = {
+            'manuscript_id': pkg_id,
+            'date_received': '',
+            'date_accepted': '',
+            'status': 'new',
+            'versions': [],
+        }
+    return packages[pkg_id]
+
+
+def _version_record(pkg: dict, version_num: int) -> dict:
+    """Return existing version sub-record or create it."""
+    versions = pkg.setdefault('versions', [])
+    for v in versions:
+        if v.get('version') == version_num:
+            return v
+    new_v = {
+        'version': version_num,
+        'replicator': _get_replicator(),
+        'zenodo_id': '',
+        'date_downloaded': '',
+        'date_report_sent': '',
+        'date_decision_sent': '',
+        'hours': 0.0,
+        'recommendation': '',
+        'de_decision': '',
+        'software': [],
+        'data_availability': '',
+        'comments': '',
+    }
+    versions.append(new_v)
+    return new_v
+
+
+def _current_version_number() -> int:
+    """Return integer from current git branch (e.g. version2 → 2), or 1."""
+    branch = get_git_branch() or 'version1'
+    try:
+        return int(branch.replace('version', ''))
+    except ValueError:
+        return 1
+
+
+def track_event(pkg_id: str, event: str, value: str = '', ctx=None):
+    """
+    Update packages.toml with a tracking event. Silent on errors —
+    tracking should never break the main workflow.
+    Pass click ctx to respect --notrack flag.
+
+    Events:
+        received          → date_received = today, status = new
+        downloaded        → versions[N].date_downloaded = today, status = assigned (first) / revision
+        report_sent       → versions[N].date_report_sent = today, status = recommendation
+        accepted          → date_accepted = today, status = accepted
+        decision_sent     → versions[N].date_decision_sent = today
+        hours             → versions[N].hours += float(value)
+        status            → status = value
+        zenodo_id         → versions[N].zenodo_id = value
+        replicator        → versions[N].replicator = value
+        recommendation    → versions[N].recommendation = value
+        de_decision       → versions[N].de_decision = value
+        software          → versions[N].software = value (comma-separated string → list)
+        data_availability → versions[N].data_availability = value
+        comments          → versions[N].comments = value
+    """
+    console = Console()
+    if ctx is not None and ctx.obj and ctx.obj.get('notrack'):
+        return
+    try:
+        packages, sha = _gh_api_get_packages()
+        pkg = _pkg_record(packages, pkg_id)
+        ver_num = _current_version_number()
+        ver = _version_record(pkg, ver_num)
+        today = _today()
+
+        if event == 'received':
+            pkg['date_received'] = pkg['date_received'] or today
+            pkg['status'] = 'new'
+        elif event == 'downloaded':
+            ver['date_downloaded'] = ver['date_downloaded'] or today
+            pkg['status'] = 'assigned' if ver_num == 1 else 'resubmitted'
+        elif event == 'report_sent':
+            ver['date_report_sent'] = ver['date_report_sent'] or today
+            pkg['status'] = 'with-authors'
+        elif event == 'accepted':
+            pkg['date_accepted'] = pkg['date_accepted'] or today
+            pkg['status'] = 'accepted'
+        elif event == 'decision_sent':
+            ver['date_decision_sent'] = ver['date_decision_sent'] or today
+        elif event == 'hours':
+            ver['hours'] = round(ver['hours'] + float(value), 2)
+        elif event == 'status':
+            pkg['status'] = value
+        elif event == 'zenodo_id':
+            ver['zenodo_id'] = value
+        elif event == 'replicator':
+            ver['replicator'] = value
+        elif event == 'recommendation':
+            ver['recommendation'] = value
+        elif event == 'de_decision':
+            ver['de_decision'] = value
+        elif event == 'software':
+            ver['software'] = [s.strip() for s in value.split(',') if s.strip()]
+        elif event == 'data_availability':
+            ver['data_availability'] = value
+        elif event == 'comments':
+            ver['comments'] = value
+
+        _gh_api_put_packages(packages, sha, f"track {pkg_id}: {event}")
+    except Exception as e:
+        console.print(f"[yellow]Warning: tracking update failed ({event}): {e}[/yellow]")
+
+
 def rich_to_html_prompt(rich_markup):
     """Convert rich markup to HTML for prompt-toolkit."""
     # Simple conversion for basic rich markup to HTML
@@ -170,10 +342,13 @@ def rich_to_html_prompt(rich_markup):
 
 @click.group()
 @click.version_option(__version__, prog_name='restud')
+@click.option('--notrack', is_flag=True, default=False,
+              help='Disable all automatic tracking hooks for this invocation.')
 @click.pass_context
-def cli(ctx):
+def cli(ctx, notrack):
     """REStud workflow management CLI tool."""
     ctx.ensure_object(dict)
+    ctx.obj['notrack'] = notrack
 
 @cli.command()
 @click.argument('package_name')
@@ -266,6 +441,7 @@ def accept(ctx, no_commit):
 
         # Check community status
         _check_community(ctx)
+        track_event(get_current_folder(), 'accepted', ctx=ctx)
     else:
         console = Console()
         console.print("[yellow]Acceptance message generated without committing. Files ready for review.[/yellow]")
@@ -347,6 +523,7 @@ def new(ctx, package_name):
     subprocess.run(['git', 'commit', '-m', 'initial report template'], check=True)
     subprocess.run(['git', 'push'], check=True)
     click.echo(f"Created version1 with report.aml for {package_name}")
+    track_event(package_name, 'received', ctx=ctx)
 
 
 @cli.command()
@@ -411,28 +588,38 @@ def download_withurl(ctx, zenodo_url):
     # Filter for local branches only (exclude remote branches and author)
     branches = [line.strip() for line in result.stdout.split('\n') if line.strip() and 'author' not in line and not line.strip().startswith('remotes/')]
 
+    pkg_id = get_current_folder()
     if not branches:
         click.echo('No other branch than author exists')
         subprocess.run(['git', 'commit', '-m', f'initial commit from zenodo {zenodo_url}'], check=True)
         subprocess.run(['git', 'push', 'origin', 'author', '--set-upstream'], check=True)
         subprocess.run(['git', 'checkout', '-b', 'version1'], check=True)
+        track_event(pkg_id, 'downloaded', ctx=ctx)
     else:
         click.echo('Other branches exist')
         subprocess.run(['git', 'commit', '-m', f'update to zenodo version {zenodo_url}'], check=True)
         subprocess.run(['git', 'push'], check=True)
 
-        # Get latest version number
         latest_version = _get_latest_version()
-        new_version = latest_version + 1
 
-        # Create new version branch
-        subprocess.run(['git', 'checkout', '-b', f'version{new_version}'], check=True)
+        if _version_is_empty(latest_version):
+            # version branch was created by restud new but never downloaded into
+            click.echo(f'First download: merging into existing version{latest_version}')
+            subprocess.run(['git', 'checkout', f'version{latest_version}'], check=True)
+            subprocess.run(['git', 'merge', 'author', '--no-edit'], check=True)
+            subprocess.run(['git', 'push'], check=True)
+        else:
+            new_version = latest_version + 1
 
-        # Copy report.yaml from previous version branch and commit it
-        _copy_report_from_previous_version(latest_version)
+            # Create new version branch
+            subprocess.run(['git', 'checkout', '-b', f'version{new_version}'], check=True)
 
-        # Push the new version branch
-        subprocess.run(['git', 'push', '-u', 'origin', f'version{new_version}'], check=True)
+            # Copy report.yaml from previous version branch and commit it
+            _copy_report_from_previous_version(latest_version)
+
+            # Push the new version branch
+            subprocess.run(['git', 'push', '-u', 'origin', f'version{new_version}'], check=True)
+        track_event(pkg_id, 'downloaded', ctx=ctx)
 
     _save_zenodo_metadata(zenodo_url)
 
@@ -529,6 +716,9 @@ def download(ctx, record_id):
             subprocess.run(['git', 'commit', '-m', 'initial report template'], check=True)
             subprocess.run(['git', 'push'], check=True)
             console.print('Switched to version1 and pushed to remote')
+            pkg_id = get_current_folder()
+            track_event(pkg_id, 'zenodo_id', str(record_id), ctx=ctx)
+            track_event(pkg_id, 'downloaded', ctx=ctx)
         else:
             # Subsequent downloads: version branches already exist
             if not has_changes:
@@ -544,13 +734,21 @@ def download(ctx, record_id):
                 subprocess.run(['git', 'push'], check=True)
 
                 latest_version = _get_latest_version()
-                new_version = latest_version + 1
 
-                console.print(f'Creating version{new_version}')
-                subprocess.run(['git', 'checkout', '-b', f'version{new_version}'], check=True)
-                _copy_report_from_previous_version(latest_version)
-                subprocess.run(['git', 'push', '-u', 'origin', f'version{new_version}'], check=True)
-                console.print(f'Created version{new_version} and pushed to remote')
+                if _version_is_empty(latest_version):
+                    console.print(f'First download: merging into existing version{latest_version}')
+                    subprocess.run(['git', 'checkout', f'version{latest_version}'], check=True)
+                    subprocess.run(['git', 'merge', 'author', '--no-edit'], check=True)
+                    subprocess.run(['git', 'push'], check=True)
+                else:
+                    new_version = latest_version + 1
+
+                    console.print(f'Creating version{new_version}')
+                    subprocess.run(['git', 'checkout', '-b', f'version{new_version}'], check=True)
+                    _copy_report_from_previous_version(latest_version)
+                    subprocess.run(['git', 'push', '-u', 'origin', f'version{new_version}'], check=True)
+                    console.print(f'Created version{new_version} and pushed to remote')
+                track_event(get_current_folder(), 'downloaded', ctx=ctx)
     else:
         # Multiple files: download all, then process
         _download_multiple_files(record_id, files, zenodo_key)
@@ -560,8 +758,10 @@ def download(ctx, record_id):
 @click.argument('branch_name', required=False)
 @click.option('--no-commit', is_flag=True, help='Generate report without committing and pushing')
 @click.option('--needspackage', is_flag=True, help='Use needs-replication-package template')
+@click.option('--track', 'do_track', is_flag=True, default=False,
+              help='Record report_sent event in tracking database (off by default).')
 @click.pass_context
-def revise(ctx, branch_name, no_commit, needspackage):
+def revise(ctx, branch_name, no_commit, needspackage, do_track):
     """Generate revision report message.
 
     Generates response.txt from report.aml using the appropriate Jinja2 template based on
@@ -607,6 +807,8 @@ def revise(ctx, branch_name, no_commit, needspackage):
         subprocess.run(['git', 'add', report_file, 'response.txt'], check=True)
         subprocess.run(['git', 'commit', '-m', 'update report'], check=True)
         subprocess.run(['git', 'push', 'origin', branch_name], check=True)
+        if do_track:
+            track_event(get_current_folder(), 'report_sent', ctx=ctx)
     else:
         console = Console()
         console.print("[yellow]Report generated without committing. Files ready for review.[/yellow]")
@@ -651,6 +853,277 @@ def snippet_cmd(ctx, tag):
         return
 
     click.echo(flat[key])
+
+
+# ---------------------------------------------------------------------------
+# Track commands
+# ---------------------------------------------------------------------------
+
+@cli.group()
+@click.option('-p', '--package', 'pkg_override', default=None,
+              help='Package number (defaults to current folder name)')
+@click.pass_context
+def track(ctx, pkg_override):
+    """Update tracking data for a package."""
+    ctx.ensure_object(dict)
+    ctx.obj['pkg_id'] = pkg_override or get_current_folder()
+
+
+@track.command('hours')
+@click.argument('hours', type=float)
+@click.pass_context
+def track_hours(ctx, hours):
+    """Add hours spent on current package/version."""
+    pkg_id = ctx.obj['pkg_id']
+    track_event(pkg_id, 'hours', str(hours), ctx=ctx)
+    click.echo(f"Logged {hours}h for {pkg_id}.")
+
+
+@track.command('status')
+@click.argument('status', type=click.Choice(
+    ['new', 'assigned', 'resubmitted', 'with-authors', 'with-de', 'with-me', 'q-authors', 'accepted', 'withdrawn']))
+@click.pass_context
+def track_status(ctx, status):
+    """Manually set package status."""
+    pkg_id = ctx.obj['pkg_id']
+    track_event(pkg_id, 'status', status, ctx=ctx)
+    click.echo(f"Status of {pkg_id} set to '{status}'.")
+
+
+@track.command('decision-sent')
+@click.pass_context
+def track_decision_sent(ctx):
+    """Record today as the date the decision was sent to the author."""
+    pkg_id = ctx.obj['pkg_id']
+    track_event(pkg_id, 'decision_sent', ctx=ctx)
+    click.echo(f"Decision-sent date recorded for {pkg_id}.")
+
+
+@track.command('replicator')
+@click.argument('name')
+@click.pass_context
+def track_replicator(ctx, name):
+    """Set the replicator name for the current version of a package."""
+    pkg_id = ctx.obj['pkg_id']
+    track_event(pkg_id, 'replicator', name, ctx=ctx)
+    click.echo(f"Replicator for {pkg_id} set to '{name}'.")
+
+
+@track.command('recommendation')
+@click.argument('value')
+@click.pass_context
+def track_recommendation(ctx, value):
+    """Set the replicator's recommendation for the current version."""
+    pkg_id = ctx.obj['pkg_id']
+    track_event(pkg_id, 'recommendation', value, ctx=ctx)
+    click.echo(f"Recommendation for {pkg_id} set to '{value}'.")
+
+
+@track.command('de-decision')
+@click.argument('value')
+@click.pass_context
+def track_de_decision(ctx, value):
+    """Set the data editor's decision for the current version."""
+    pkg_id = ctx.obj['pkg_id']
+    track_event(pkg_id, 'de_decision', value, ctx=ctx)
+    click.echo(f"DE decision for {pkg_id} set to '{value}'.")
+
+
+@track.command('software')
+@click.argument('value')
+@click.pass_context
+def track_software(ctx, value):
+    """Set software list for the current version (comma-separated, e.g. 'Stata,R')."""
+    pkg_id = ctx.obj['pkg_id']
+    track_event(pkg_id, 'software', value, ctx=ctx)
+    click.echo(f"Software for {pkg_id} set to '{value}'.")
+
+
+@track.command('data-availability')
+@click.argument('value')
+@click.pass_context
+def track_data_availability(ctx, value):
+    """Set data availability note for the current version."""
+    pkg_id = ctx.obj['pkg_id']
+    track_event(pkg_id, 'data_availability', value, ctx=ctx)
+    click.echo(f"Data availability for {pkg_id} set to '{value}'.")
+
+
+@track.command('comment')
+@click.argument('value')
+@click.pass_context
+def track_comment(ctx, value):
+    """Set comments for the current version."""
+    pkg_id = ctx.obj['pkg_id']
+    track_event(pkg_id, 'comments', value, ctx=ctx)
+    click.echo(f"Comments for {pkg_id} updated.")
+
+
+@track.command('show')
+@click.pass_context
+def track_show(ctx):
+    """Show tracking record for the current (or -p) package."""
+    pkg_id = ctx.obj['pkg_id']
+    try:
+        packages, _ = _gh_api_get_packages()
+    except Exception as e:
+        click.echo(f"Error fetching tracking data: {e}", err=True)
+        return
+    if pkg_id not in packages:
+        click.echo(f"No tracking record found for {pkg_id}.")
+        return
+    pkg = packages[pkg_id]
+    console = Console()
+    console.print(f"\n[bold]Package {pkg_id}[/bold]")
+    console.print(f"  Status      : {pkg.get('status', '')}")
+    console.print(f"  Received    : {pkg.get('date_received', '')}")
+    console.print(f"  Accepted    : {pkg.get('date_accepted', '')}")
+    for v in pkg.get('versions', []):
+        n = v['version']
+        software_str = ', '.join(v.get('software', [])) or ''
+        console.print(f"  [bold]Version {n}[/bold]")
+        console.print(f"    Replicator   : {v.get('replicator','')}")
+        console.print(f"    Zenodo ID    : {v.get('zenodo_id','')}")
+        console.print(f"    Downloaded   : {v.get('date_downloaded','')}")
+        console.print(f"    Report sent  : {v.get('date_report_sent','')}")
+        console.print(f"    Decision sent: {v.get('date_decision_sent','')}")
+        console.print(f"    Hours        : {v.get('hours', 0.0)}")
+        console.print(f"    Recommendation: {v.get('recommendation','')}")
+        console.print(f"    DE decision  : {v.get('de_decision','')}")
+        console.print(f"    Software     : {software_str}")
+        if v.get('data_availability'):
+            console.print(f"    Data avail.  : {v.get('data_availability','')}")
+        if v.get('comments'):
+            console.print(f"    Comments     : {v.get('comments','')}")
+
+
+# ---------------------------------------------------------------------------
+# List command
+# ---------------------------------------------------------------------------
+
+VALID_STATUSES = ['new', 'assigned', 'resubmitted', 'with-authors', 'with-de', 'with-me', 'q-authors', 'accepted', 'withdrawn']
+
+
+@cli.command(name='list')
+@click.option('--status', '-s', default=None,
+              type=click.Choice(VALID_STATUSES + ['all']),
+              help='Filter by status (default: all active)')
+@click.option('--replicator', '-r', default=None, help='Filter by replicator name')
+@click.pass_context
+def list_packages(ctx, status, replicator):
+    """List packages from the admin tracking database."""
+    try:
+        packages, _ = _gh_api_get_packages()
+    except Exception as e:
+        click.echo(f"Error fetching tracking data: {e}", err=True)
+        return
+    if not packages:
+        click.echo("No packages in tracking database.")
+        return
+
+    console = Console()
+    rows = []
+    for pkg_id, pkg in sorted(packages.items()):
+        s = pkg.get('status', '')
+        # replicator: take from the latest version
+        versions = pkg.get('versions', [])
+        r = versions[-1].get('replicator', '') if versions else ''
+        if status and status != 'all' and s != status:
+            continue
+        if status is None and s in ('accepted', 'withdrawn'):
+            continue  # default: show only active
+        if replicator and r.lower() != replicator.lower():
+            continue
+        total_hours = sum(v.get('hours', 0.0) for v in pkg.get('versions', []))
+        n_versions = len(pkg.get('versions', []))
+        rows.append((pkg_id, s, r, pkg.get('date_received', ''), n_versions, total_hours))
+
+    if not rows:
+        click.echo("No packages match the filter.")
+        return
+
+    header = f"{'ID':<10} {'Status':<16} {'Replicator':<20} {'Received':<12} {'Versions':>8} {'Hours':>6}"
+    console.print(f"\n[bold]{header}[/bold]")
+    console.print("-" * len(header))
+    for pkg_id, s, r, received, n_v, hrs in rows:
+        color = {'accepted': 'green', 'with-authors': 'yellow', 'with-de': 'yellow', 'with-me': 'yellow',
+                 'resubmitted': 'cyan', 'assigned': 'blue', 'q-authors': 'magenta', 'new': 'white',
+                 'withdrawn': 'red'}.get(s, 'white')
+        console.print(f"{pkg_id:<10} [{color}]{s:<16}[/{color}] {r:<20} {received:<12} {n_v:>8} {hrs:>6.1f}")
+    console.print()
+
+
+# ---------------------------------------------------------------------------
+# Stats command
+# ---------------------------------------------------------------------------
+
+@cli.command()
+@click.pass_context
+def stats(ctx):
+    """Show aggregate statistics from the tracking database."""
+    from datetime import date
+
+    try:
+        packages, _ = _gh_api_get_packages()
+    except Exception as e:
+        click.echo(f"Error fetching tracking data: {e}", err=True)
+        return
+    if not packages:
+        click.echo("No packages in tracking database.")
+        return
+
+    console = Console()
+
+    total = len(packages)
+    by_status = {}
+    for pkg in packages.values():
+        s = pkg.get('status', 'unknown')
+        by_status[s] = by_status.get(s, 0) + 1
+
+    # Days: receipt to acceptance
+    receipt_to_accept_days = []
+    total_hours_all = []
+    replicator_hours = {}
+
+    for pkg in packages.values():
+        versions = pkg.get('versions', [])
+        r = versions[-1].get('replicator', 'unknown') if versions else 'unknown'
+        hrs = sum(v.get('hours', 0.0) for v in versions)
+        total_hours_all.append(hrs)
+        replicator_hours[r] = replicator_hours.get(r, 0.0) + hrs
+
+        if pkg.get('date_received') and pkg.get('date_accepted'):
+            try:
+                d0 = date.fromisoformat(pkg['date_received'])
+                d1 = date.fromisoformat(pkg['date_accepted'])
+                receipt_to_accept_days.append((d1 - d0).days)
+            except ValueError:
+                pass
+
+    console.print("\n[bold]Package counts by status:[/bold]")
+    for s in VALID_STATUSES:
+        n = by_status.get(s, 0)
+        if n:
+            console.print(f"  {s:<20} {n}")
+    console.print(f"  {'Total':<20} {total}")
+
+    if receipt_to_accept_days:
+        avg_days = sum(receipt_to_accept_days) / len(receipt_to_accept_days)
+        console.print(f"\n[bold]Days receipt → acceptance:[/bold] {avg_days:.1f} avg over {len(receipt_to_accept_days)} packages")
+
+    accepted_hrs = [sum(v.get('hours', 0.0) for v in packages[pid].get('versions', []))
+                    for pid, pkg in packages.items() if pkg.get('status') == 'accepted'
+                    for pid in [pid] if packages[pid].get('hours_counted', True)]
+    # simpler:
+    accepted_hrs = [sum(v.get('hours', 0.0) for v in pkg.get('versions', []))
+                    for pkg in packages.values() if pkg.get('status') == 'accepted']
+    if accepted_hrs:
+        console.print(f"[bold]Avg hours (accepted):[/bold] {sum(accepted_hrs)/len(accepted_hrs):.2f}")
+
+    console.print("\n[bold]Hours by replicator:[/bold]")
+    for r, hrs in sorted(replicator_hours.items(), key=lambda x: -x[1]):
+        console.print(f"  {r:<25} {hrs:.1f}h")
+    console.print()
 
 
 @cli.command()
@@ -969,39 +1442,19 @@ def _download_multiple_files(record_id, files, zenodo_key):
             subprocess.run(['git', 'push'], check=True)
 
             latest_version = _get_latest_version()
-            new_version = latest_version + 1
 
-            subprocess.run(['git', 'checkout', '-b', f'version{new_version}'], check=True)
-            _copy_report_from_previous_version(latest_version)
-            subprocess.run(['git', 'push', '-u', 'origin', f'version{new_version}'], check=True)
-            console.print(f'Created version{new_version} and pushed to remote')
+            if _version_is_empty(latest_version):
+                console.print(f'First download: merging into existing version{latest_version}')
+                subprocess.run(['git', 'checkout', f'version{latest_version}'], check=True)
+                subprocess.run(['git', 'merge', 'author', '--no-edit'], check=True)
+                subprocess.run(['git', 'push'], check=True)
+            else:
+                new_version = latest_version + 1
 
-
-def _get_cookie():
-    """Get or create Zenodo session cookie."""
-    cookie_file = os.path.expanduser('~/.config/restud/restud-cookie.json')
-
-    if not os.path.exists(cookie_file):
-        _create_cookie()
-
-    if not os.path.exists(cookie_file):
-        raise RuntimeError("No Zenodo session cookie found. Cannot accept into community.")
-
-    with open(cookie_file, 'r') as f:
-        cookie_data = json.load(f)
-
-    # Check if cookie is expired
-    from datetime import datetime
-    try:
-        exp_date = datetime.strptime(cookie_data['exp_date'], '%Y-%m-%d')
-    except (ValueError, KeyError):
-        exp_date = datetime.min  # treat missing/invalid date as expired
-    if datetime.now() > exp_date:
-        _create_cookie()
-        with open(cookie_file, 'r') as f:
-            cookie_data = json.load(f)
-
-    return cookie_data['value']
+                subprocess.run(['git', 'checkout', '-b', f'version{new_version}'], check=True)
+                _copy_report_from_previous_version(latest_version)
+                subprocess.run(['git', 'push', '-u', 'origin', f'version{new_version}'], check=True)
+                console.print(f'Created version{new_version} and pushed to remote')
 
 
 def _create_cookie():
@@ -1152,6 +1605,15 @@ def _check_for_files():
     else:
         console.print("[green]No empty files[/green]")
     return True
+
+
+def _version_is_empty(version_num: int) -> bool:
+    """Return True if versionN has never had content downloaded into it (no .zenodo file committed)."""
+    result = subprocess.run(
+        ['git', 'show', f'version{version_num}:.zenodo'],
+        capture_output=True
+    )
+    return result.returncode != 0
 
 
 def _get_latest_version():
