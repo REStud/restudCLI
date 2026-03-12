@@ -617,7 +617,7 @@ def report(ctx, branch_name, no_commit):
 def snippet_cmd(ctx, tag):
     """Print the text of a snippet from base-snippets.toml.
 
-    Without arguments, lists all available snippet names.
+    Without arguments, lists all available snippet names grouped by category.
 
     Args:
         TAG: Snippet tag name, with or without the leading * (e.g. DAS or *DAS)
@@ -625,21 +625,31 @@ def snippet_cmd(ctx, tag):
     snippets_path = get_template_path('base-snippets.toml')
     with open(snippets_path, 'r', encoding='utf-8') as f:
         data = toml.load(f)
-    snippets = data.get('snippets', {})
+    groups = data.get('snippets', {})
+
+    # Build flat lookup dict
+    flat = {}
+    for group_tags in groups.values():
+        if isinstance(group_tags, dict):
+            flat.update(group_tags)
 
     if tag is None:
-        click.echo('Available snippets: ' + ', '.join(k.lstrip('*') for k in sorted(snippets)))
+        for group_name, group_tags in groups.items():
+            if isinstance(group_tags, dict):
+                click.echo(f"{group_name}:")
+                click.echo('  ' + ', '.join(k.lstrip('*') for k in group_tags))
+                click.echo()
         return
 
     # Normalise: ensure tag starts with *
     key = tag if tag.startswith('*') else f'*{tag}'
 
-    if key not in snippets:
-        available = ', '.join(k.lstrip('*') for k in sorted(snippets))
+    if key not in flat:
+        available = ', '.join(k.lstrip('*') for k in sorted(flat))
         click.echo(f"Unknown snippet '{key}'. Available: {available}", err=True)
         return
 
-    click.echo(snippets[key])
+    click.echo(flat[key])
 
 
 @cli.command()

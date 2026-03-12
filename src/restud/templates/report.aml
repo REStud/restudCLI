@@ -38,18 +38,19 @@ salutation = "name"
 
 ## Code issues
 # *macosx = Remove __MACOSX and .DS_STORE folders
+# *forward_slash = Use "/" not "\" in file names
 # *relative_path = Use relative paths instead of absolute paths
 # *stata_packages = List all Stata packages with installation instructions
 # *matlab_toolboxes = Mention all Matlab toolboxes used
 # *save_output = Save all output in standard formats (csv, xls, tex, log)
 # *fortran = Describe Fortran compilation and dependencies
+# *data_manipulation = Include all data manipulation code
+# *synthetic = Explain how to include syntetic data and code
 
 ## Data issues, data citation
 # *include_data = Include raw data if license permits
 # *instruments = Include experiment/survey documentation
 # *confidential_data = Answer confidential data questions
-# *forward_slash = Use "/" not "\" in file names
 # *requirements = Describe computational requirements
-# *data_manipulation = Include all data manipulation code
 # *tresorit_upload = Use Tresorit link for confidential data sharing
 

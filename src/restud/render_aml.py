@@ -163,7 +163,15 @@ class AMLReportRenderer:
             return {}
         with open(snippets_path, 'r', encoding='utf-8') as f:
             data = toml.load(f)
-        return data.get('snippets', {})
+        # Support both flat {"*tag": text} and grouped {"group": {"*tag": text}}
+        raw = data.get('snippets', {})
+        flat: Dict[str, str] = {}
+        for v in raw.values():
+            if isinstance(v, dict):
+                flat.update(v)
+            else:
+                flat[v] = v  # shouldn't happen in normal use
+        return flat
 
     def generate_report(
         self,
