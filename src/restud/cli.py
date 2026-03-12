@@ -214,7 +214,7 @@ def _current_version_number() -> int:
         return 1
 
 
-def track_event(pkg_id: str, event: str, value: str = '', ctx=None):
+def track_event(pkg_id: str, event: str, value: str = '', ctx=None, date: str = ''):
     """
     Update packages.toml with a tracking event. Silent on errors —
     tracking should never break the main workflow.
@@ -244,7 +244,7 @@ def track_event(pkg_id: str, event: str, value: str = '', ctx=None):
         pkg = _pkg_record(packages, pkg_id)
         ver_num = _current_version_number()
         ver = _version_record(pkg, ver_num)
-        today = _today()
+        today = date if date else _today()
 
         if event == 'received':
             pkg['date_received'] = pkg['date_received'] or today
@@ -394,10 +394,30 @@ def accept(ctx, no_commit):
 
 
 
+def _parse_date_flag(value: str) -> str:
+    """Parse --date flag: integer offset (e.g. -1) or MM-DD. Returns ISO date string."""
+    from datetime import date, timedelta, datetime
+    today = date.today()
+    try:
+        offset = int(value)
+        return (today + timedelta(days=offset)).isoformat()
+    except ValueError:
+        pass
+    for fmt in ('%m-%d', '%m/%d'):
+        try:
+            parsed = datetime.strptime(value, fmt)
+            return today.replace(month=parsed.month, day=parsed.day).isoformat()
+        except ValueError:
+            continue
+    raise click.BadParameter(f"Cannot parse date '{value}'. Use an integer offset (e.g. -1) or MM-DD format.")
+
+
 @cli.command()
 @click.argument('package_name')
+@click.option('--date', '-d', 'received_date', default=None,
+              help='Set date_received: integer offset from today (e.g. -1 for yesterday) or MM-DD.')
 @click.pass_context
-def new(ctx, package_name):
+def new(ctx, package_name, received_date):
     """Create new replication package.
 
     Initializes a new local repository with report.aml template, creates a remote GitHub
@@ -469,7 +489,8 @@ def new(ctx, package_name):
     subprocess.run(['git', 'commit', '-m', 'initial report template'], check=True)
     subprocess.run(['git', 'push'], check=True)
     click.echo(f"Created version1 with report.aml for {package_name}")
-    track_event(package_name, 'received', ctx=ctx)
+    parsed_date = _parse_date_flag(received_date) if received_date else ''
+    track_event(package_name, 'received', ctx=ctx, date=parsed_date)
 
 
 @cli.command()
@@ -580,8 +601,8 @@ def download_withurl(ctx, zenodo_url):
 def download(ctx, record_id):
     """Download package from Zenodo draft using record ID.
 
-    Downloads from a Zenodo draft record by ID. Lists available files and prompts for
-    selection (or auto-selects if only one file). Requires valid Zenodo session cookie.
+    Downloads from a Zenodo draft record by ID. Downloads all available files.
+    Requires Zenodo API key in ~/.config/.zenodo_api_key.
 
     Args:
         RECORD_ID: Zenodo draft record ID (numeric)
@@ -617,95 +638,7 @@ def download(ctx, record_id):
         size_mb = file_info.get('size', 0) / (1024 * 1024)
         console.print(f"  {idx}. {file_info['key']} ({size_mb:.2f} MB)")
 
-    # If only one file, process directly
-    if len(files) == 1:
-        filename = files[0]['key']
-        download_url = f"https://zenodo.org/api/records/{record_id}/draft/files/{filename}/content"
-        console.print(f"[blue]Downloading {filename}...[/blue]")
-
-        branch = get_git_branch()
-        if branch != 'author':
-            click.echo('You must be on the author branch to download from Zenodo. Changing to author branch now.')
-            status_result = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, check=True)
-            committed_changes = [line for line in status_result.stdout.split('\n') if line and not line.startswith('??')]
-            if committed_changes:
-                click.echo('[ERROR] You have uncommitted changes. Please commit or discard them before downloading.', err=True)
-                sys.exit(1)
-            subprocess.run(['git', 'switch', 'author'], check=True)
-
-        _empty_folder()
-
-        _download_zenodo(download_url, zenodo_key)
-
-        # Create .zenodo metadata file and large files report with .gitignore
-        _commit_changes()
-        _check_for_files()
-
-        # Save zenodo metadata before checking for changes so it is included
-        _save_zenodo_metadata(download_url)
-        subprocess.run(['git', 'add', '.zenodo'], check=True)
-
-        # Check if there are changes to the previous commit in the author branch
-        status_result = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, check=True)
-        has_changes = status_result.stdout.strip() != ""
-
-        result = subprocess.run(['git', 'branch', '-a'], capture_output=True, text=True, check=True)
-        branches = [line.strip() for line in result.stdout.split('\n') if line.strip() and 'author' not in line and not line.strip().startswith('remotes/')]
-
-        if not branches:
-            # First download: no version branches exist
-            console.print('First download: creating version1')
-            subprocess.run(['git', 'commit', '-m', f'initial commit from zenodo'], check=True)
-            subprocess.run(['git', 'push', 'origin', 'author', '--set-upstream'], check=True)
-            subprocess.run(['git', 'checkout', '-b', 'version1'], check=True)
-            subprocess.run(['git', 'push', '-u', 'origin', 'version1'], check=True)
-            # Create initial report.aml template on version1
-            shutil.copy(get_template_path('report.aml'), 'report.aml')
-            _add_manuscript_id_to_report()
-            subprocess.run(['git', 'add', 'report.aml'], check=True)
-            subprocess.run(['git', 'commit', '-m', 'initial report template'], check=True)
-            subprocess.run(['git', 'push'], check=True)
-            console.print('Switched to version1 and pushed to remote')
-            pkg_id = get_current_folder()
-            track_event(pkg_id, 'zenodo_id', str(record_id), ctx=ctx)
-            track_event(pkg_id, 'zenodo_url', f'https://zenodo.org/records/{record_id}', ctx=ctx)
-            track_event(pkg_id, 'downloaded', ctx=ctx)
-        else:
-            # Subsequent downloads: version branches already exist
-            if not has_changes:
-                console.print('No changes detected. Files are already up to date.')
-                latest_version = _get_latest_version()
-                if latest_version > 0:
-                    subprocess.run(['git', 'checkout', f'version{latest_version}'], check=True)
-                    console.print(f'Switched to version{latest_version}')
-            else:
-                # There are changes: commit to author branch and create new version
-                console.print('Changes detected. Committing to author branch.')
-                subprocess.run(['git', 'commit', '-m', f'update from zenodo'], check=True)
-                subprocess.run(['git', 'push'], check=True)
-
-                latest_version = _get_latest_version()
-
-                if _version_is_empty(latest_version):
-                    console.print(f'First download: merging into existing version{latest_version}')
-                    subprocess.run(['git', 'checkout', f'version{latest_version}'], check=True)
-                    subprocess.run(['git', 'merge', 'author', '--no-edit'], check=True)
-                    subprocess.run(['git', 'push'], check=True)
-                else:
-                    new_version = latest_version + 1
-
-                    console.print(f'Creating version{new_version}')
-                    subprocess.run(['git', 'checkout', '-b', f'version{new_version}'], check=True)
-                    _copy_report_from_previous_version(latest_version)
-                    subprocess.run(['git', 'push', '-u', 'origin', f'version{new_version}'], check=True)
-                    console.print(f'Created version{new_version} and pushed to remote')
-                pkg_id = get_current_folder()
-                track_event(pkg_id, 'zenodo_id', str(record_id), ctx=ctx)
-                track_event(pkg_id, 'zenodo_url', f'https://zenodo.org/records/{record_id}', ctx=ctx)
-                track_event(pkg_id, 'downloaded', ctx=ctx)
-    else:
-        # Multiple files: download all, then process
-        _download_multiple_files(record_id, files, zenodo_key, ctx=ctx)
+    _download_multiple_files(record_id, files, zenodo_key, ctx=ctx)
 
 
 @cli.command()
