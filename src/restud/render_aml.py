@@ -178,6 +178,7 @@ class AMLReportRenderer:
         report_path: str,
         template_name: str,
         snippets_path: Optional[str] = None,
+        extra_context: Optional[dict] = None,
     ) -> str:
         snippets = self.load_snippets(snippets_path)
         data = parse_aml(report_path)
@@ -193,6 +194,8 @@ class AMLReportRenderer:
             'comments': [],   # no DCAS rules in AML
             'snippets': snippets,
         }
+        if extra_context:
+            context.update(extra_context)
 
         template = self.env.get_template(template_name)
         return template.render(**context)

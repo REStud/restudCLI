@@ -221,12 +221,6 @@ def accept(ctx, no_commit):
 
     templates_dir = get_template_path('.')
 
-    # Select template based on version
-    if branch_name == "version1":
-        template_name = 'accept1.jinja2'
-    else:
-        template_name = 'accept2.jinja2'
-
     # Prefer report.aml if present, fall back to report.toml
     if os.path.exists('report.aml'):
         renderer = AMLReportRenderer(templates_dir)
@@ -234,14 +228,16 @@ def accept(ctx, no_commit):
         if not is_valid:
             click.echo(f"[ERROR] {msg}", err=True)
             return
-        acceptance = renderer.generate_report('report.aml', template_name)
+        acceptance = renderer.generate_report('report.aml', 'accept1.jinja2',
+                                               extra_context={'branch_name': branch_name})
     else:
         renderer = ReportRenderer(templates_dir)
         is_valid, msg = renderer.validate_toml('report.toml')
         if not is_valid:
             click.echo(f"[ERROR] {msg}", err=True)
             return
-        acceptance = renderer.generate_report('report.toml', template_name)
+        acceptance = renderer.generate_report('report.toml', 'accept1.jinja2',
+                                               extra_context={'branch_name': branch_name})
 
     # Write acceptance to file
     with open('accept.txt', 'w') as f:
@@ -574,12 +570,6 @@ def report(ctx, branch_name, no_commit):
 
     templates_dir = get_template_path('.')
 
-    # Select template based on branch version
-    if branch_name == "version1":
-        template_name = 'response1.jinja2'
-    else:
-        template_name = 'response2.jinja2'
-
     # Prefer report.aml if present, fall back to report.toml
     if os.path.exists('report.aml'):
         renderer = AMLReportRenderer(templates_dir)
@@ -587,7 +577,8 @@ def report(ctx, branch_name, no_commit):
         if not is_valid:
             click.echo(f"[ERROR] {msg}", err=True)
             return
-        response = renderer.generate_report('report.aml', template_name)
+        response = renderer.generate_report('report.aml', 'response1.jinja2',
+                                             extra_context={'branch_name': branch_name})
         report_file = 'report.aml'
     else:
         renderer = ReportRenderer(templates_dir)
@@ -595,7 +586,8 @@ def report(ctx, branch_name, no_commit):
         if not is_valid:
             click.echo(f"[ERROR] {msg}", err=True)
             return
-        response = renderer.generate_report('report.toml', template_name)
+        response = renderer.generate_report('report.toml', 'response1.jinja2',
+                                             extra_context={'branch_name': branch_name})
         report_file = 'report.toml'
 
     with open('response.txt', 'w') as f:

@@ -193,7 +193,8 @@ class ReportRenderer:
         self,
         report_path: str,
         template_name: str,
-        snippets_path: Optional[str] = None
+        snippets_path: Optional[str] = None,
+        extra_context: Optional[dict] = None,
     ) -> str:
         """
         Generate a report by rendering template with TOML data
@@ -220,6 +221,8 @@ class ReportRenderer:
         report = self.filter_empty_sections(report)
 
         # Render template
+        if extra_context:
+            report.update(extra_context)
         return self.render_template(template_name, report, snippets)
 
     def get_template_names(self) -> List[str]:
