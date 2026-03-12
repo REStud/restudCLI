@@ -23,6 +23,7 @@ try:
 except Exception:
     __version__ = 'unknown'
 
+import re
 import click
 import requests
 import yaml
@@ -226,6 +227,7 @@ def _version_record(pkg: dict, version_num: int) -> dict:
         'version': version_num,
         'replicator': _get_replicator(),
         'zenodo_id': '',
+        'zenodo_url': '',
         'date_downloaded': '',
         'date_report_sent': '',
         'date_decision_sent': '',
@@ -301,6 +303,8 @@ def track_event(pkg_id: str, event: str, value: str = '', ctx=None):
             pkg['status'] = value
         elif event == 'zenodo_id':
             ver['zenodo_id'] = value
+        elif event == 'zenodo_url':
+            ver['zenodo_url'] = value
         elif event == 'replicator':
             ver['replicator'] = value
         elif event == 'recommendation':
@@ -622,6 +626,10 @@ def download_withurl(ctx, zenodo_url):
         track_event(pkg_id, 'downloaded', ctx=ctx)
 
     _save_zenodo_metadata(zenodo_url)
+    m = re.search(r'/(\d+)', zenodo_url)
+    if m:
+        track_event(pkg_id, 'zenodo_id', m.group(1), ctx=ctx)
+    track_event(pkg_id, 'zenodo_url', zenodo_url, ctx=ctx)
 
 
 @cli.command()
@@ -718,6 +726,7 @@ def download(ctx, record_id):
             console.print('Switched to version1 and pushed to remote')
             pkg_id = get_current_folder()
             track_event(pkg_id, 'zenodo_id', str(record_id), ctx=ctx)
+            track_event(pkg_id, 'zenodo_url', f'https://zenodo.org/records/{record_id}', ctx=ctx)
             track_event(pkg_id, 'downloaded', ctx=ctx)
         else:
             # Subsequent downloads: version branches already exist
@@ -748,10 +757,13 @@ def download(ctx, record_id):
                     _copy_report_from_previous_version(latest_version)
                     subprocess.run(['git', 'push', '-u', 'origin', f'version{new_version}'], check=True)
                     console.print(f'Created version{new_version} and pushed to remote')
-                track_event(get_current_folder(), 'downloaded', ctx=ctx)
+                pkg_id = get_current_folder()
+                track_event(pkg_id, 'zenodo_id', str(record_id), ctx=ctx)
+                track_event(pkg_id, 'zenodo_url', f'https://zenodo.org/records/{record_id}', ctx=ctx)
+                track_event(pkg_id, 'downloaded', ctx=ctx)
     else:
         # Multiple files: download all, then process
-        _download_multiple_files(record_id, files, zenodo_key)
+        _download_multiple_files(record_id, files, zenodo_key, ctx=ctx)
 
 
 @cli.command()
@@ -1006,8 +1018,8 @@ VALID_STATUSES = ['new', 'assigned', 'resubmitted', 'with-authors', 'with-de', '
 
 @cli.command(name='list')
 @click.option('--status', '-s', default=None,
-              type=click.Choice(VALID_STATUSES + ['all']),
-              help='Filter by status (default: all active)')
+              type=click.Choice(VALID_STATUSES + ['all', 'active']),
+              help='Filter by status (default: active)')
 @click.option('--replicator', '-r', default=None, help='Filter by replicator name')
 @click.pass_context
 def list_packages(ctx, status, replicator):
@@ -1028,10 +1040,13 @@ def list_packages(ctx, status, replicator):
         # replicator: take from the latest version
         versions = pkg.get('versions', [])
         r = versions[-1].get('replicator', '') if versions else ''
-        if status and status != 'all' and s != status:
+        if status == 'all':
+            pass  # show everything
+        elif status == 'active' or status is None:
+            if s in ('accepted', 'withdrawn'):
+                continue
+        elif s != status:
             continue
-        if status is None and s in ('accepted', 'withdrawn'):
-            continue  # default: show only active
         if replicator and r.lower() != replicator.lower():
             continue
         total_hours = sum(v.get('hours', 0.0) for v in pkg.get('versions', []))
@@ -1174,6 +1189,28 @@ def reinstall(ctx, branch, use_pip, use_ssh, accre):
         console.print(f"[red]Error: {e}[/red]")
         if not use_pip or not use_ssh:
             console.print("[yellow]If you got a permission error, try: restud reinstall --pip --ssh[/yellow]")
+
+
+@cli.command()
+@click.pass_context
+def dashboard(ctx):
+    """Open the package tracking dashboard in a browser."""
+    import base64 as _b64, tempfile, webbrowser
+    console = Console()
+    result = subprocess.run(
+        ['gh', 'api', f'repos/{ADMIN_ORG}/{ADMIN_REPO}/contents/dashboard.html'],
+        capture_output=True, text=True)
+    if result.returncode != 0:
+        console.print(f"[red]dashboard.html not found in {ADMIN_ORG}/{ADMIN_REPO}.[/red]")
+        console.print("[yellow]Trigger the workflow on GitHub (Actions → Generate Dashboard → Run workflow).[/yellow]")
+        return
+    data = json.loads(result.stdout)
+    html = _b64.b64decode(data['content']).decode('utf-8')
+    with tempfile.NamedTemporaryFile(suffix='.html', delete=False, mode='w', encoding='utf-8') as f:
+        f.write(html)
+        tmp_path = f.name
+    webbrowser.open(f'file://{tmp_path}')
+    console.print(f"[green]Dashboard opened in browser.[/green]")
 
 
 @cli.command()
@@ -1345,7 +1382,7 @@ def _download_zenodo_preview(url):
     os.remove('repo.zip')
 
 
-def _download_multiple_files(record_id, files, zenodo_key):
+def _download_multiple_files(record_id, files, zenodo_key, ctx=None):
     """Download multiple files from Zenodo draft.
 
     Downloads all files, unzips only .zip files, and keeps other files as-is.
@@ -1427,6 +1464,10 @@ def _download_multiple_files(record_id, files, zenodo_key):
         subprocess.run(['git', 'commit', '-m', 'initial report template'], check=True)
         subprocess.run(['git', 'push'], check=True)
         console.print('Switched to version1 and pushed to remote')
+        pkg_id = get_current_folder()
+        track_event(pkg_id, 'zenodo_id', str(record_id), ctx=ctx)
+        track_event(pkg_id, 'zenodo_url', f'https://zenodo.org/records/{record_id}', ctx=ctx)
+        track_event(pkg_id, 'downloaded', ctx=ctx)
     else:
         # Subsequent downloads: version branches already exist
         if not has_changes:
@@ -1455,7 +1496,10 @@ def _download_multiple_files(record_id, files, zenodo_key):
                 _copy_report_from_previous_version(latest_version)
                 subprocess.run(['git', 'push', '-u', 'origin', f'version{new_version}'], check=True)
                 console.print(f'Created version{new_version} and pushed to remote')
-
+            pkg_id = get_current_folder()
+            track_event(pkg_id, 'zenodo_id', str(record_id), ctx=ctx)
+            track_event(pkg_id, 'zenodo_url', f'https://zenodo.org/records/{record_id}', ctx=ctx)
+            track_event(pkg_id, 'downloaded', ctx=ctx)
 
 def _create_cookie():
     """Create new Zenodo session cookie."""
