@@ -254,14 +254,15 @@ def accept(ctx, no_commit):
         if status_result.stdout.strip():
             # There are changes to commit
             subprocess.run(['git', 'commit', '-m', 'acceptance message'], check=True)
-            subprocess.run(['git', 'tag', 'accepted'], check=True)
             subprocess.run(['git', 'push'], check=True)
+
+        # Tag only if not already tagged
+        if not get_git_accepted_tag():
+            subprocess.run(['git', 'tag', 'accepted'], check=True)
             subprocess.run(['git', 'push', '--tags'], check=True)
         else:
             console = Console()
-            console.print("[yellow]No changes to commit. Accept.txt is already up to date.[/yellow]")
-            subprocess.run(['git', 'tag', 'accepted'], check=True)
-            subprocess.run(['git', 'push', '--tags'], check=True)
+            console.print("[yellow]Tag 'accepted' already exists, skipping.[/yellow]")
 
         # Check community status
         _check_community(ctx)
