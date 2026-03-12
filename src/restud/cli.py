@@ -699,6 +699,8 @@ def reinstall(ctx, branch, use_pip, use_ssh, accre):
         console.print(f"[yellow]Make sure you have the correct remote branch and {installer} is installed.[/yellow]")
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
+        if not use_pip or not use_ssh:
+            console.print("[yellow]If you got a permission error, try: restud reinstall --pip --ssh[/yellow]")
 
 
 @cli.command()
