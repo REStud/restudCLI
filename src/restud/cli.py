@@ -1313,10 +1313,8 @@ def _community_accept(zenodo_id):
     console = Console()
     try:
         api_key = _get_zenodo_key()
-        cookie_value = _get_cookie()
-        headers = {'Cookie': f'session={cookie_value}'}
-        url = _get_accept_request(zenodo_id, api_key, headers)
-        response = requests.post(f"{url}?access_token={api_key}", headers=headers)
+        url = _get_accept_request(zenodo_id, api_key)
+        response = requests.post(f"{url}?access_token={api_key}")
         if response.status_code in (200, 201, 202, 204):
             console.print("[green]Successfully accepted into REStud community.[/green]")
         else:
@@ -1326,10 +1324,10 @@ def _community_accept(zenodo_id):
     except Exception as e:
         console.print(f"[red]Failed to accept into community: {e}[/red]")
 
-def _get_accept_request(zenodo_id, api_key, headers):
+def _get_accept_request(zenodo_id, api_key):
     """Get the acceptance request URL for a Zenodo record."""
     url = f"https://zenodo.org/api/communities/451be469-757a-4121-8792-af8ffc4461fb/requests?size=50&is_open=true&access_token={api_key}"
-    response = requests.get(url, headers=headers)
+    response = requests.get(url)
     requests_data = response.json()
     link = [item['links']['actions']['accept'] for item in requests_data['hits']['hits'] if item['topic']['record'] == zenodo_id]
     return link[0]
