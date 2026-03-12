@@ -648,7 +648,7 @@ def snippet_cmd(ctx, tag):
 @click.option('--branch', default='main', help='Remote branch to install from (default: main)')
 @click.option('--pip', 'use_pip', is_flag=True, help='Use pip instead of uv for installation')
 @click.option('--ssh', 'use_ssh', is_flag=True, help='Use SSH URL instead of HTTPS')
-@click.option('--accre', 'accre', is_flag=True, help='Use options amenable to ACCRE')
+@click.option('--accre', 'accre', is_flag=True, help='Use options amenable to ACCRE: --pip --ssh')
 @click.pass_context
 def reinstall(ctx, branch, use_pip, use_ssh, accre):
     """Reinstall REStud from remote branch.
