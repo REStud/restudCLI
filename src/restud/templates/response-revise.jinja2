@@ -4,11 +4,11 @@ Data editor report, ReStud MS {{ metadata.manuscript_id }}
 Dear {{ metadata.salutation }},
 
 {% if branch_name == "version1" %}
-Congratulations on your acceptance to ReStud, and thank you for sending the replication materials for "{{ metadata.title }}" to the Review. To help our readers replicate your results, my team and I have reviewed the code, data and documentation you have submitted.
+Congratulations on your acceptance to ReStud, and thank you for sending the replication materials for "{{ metadata.title }}" to the Review.
 {% else %}
 Thank you for submitting a revision of your replication materials for "{{ metadata.title }}".
 {% endif %}
-
+To help our readers replicate your results, my team and I have reviewed the code, data and documentation you have submitted.
 {% if beginning %}{{ beginning }}
 
 {% endif %}
@@ -35,7 +35,7 @@ Please address the following {% if requests|length == 1 %} comment: {% else %}co
 
 {% endfor %}
 {% endif %}
-After you have made these changes, please upload the revision to Zenodo and send me the link to the new version. When creating the new version, please edit the date of the Zenodo record to reflect when you have made the changes.
+Feel free to contact me if you need guidance or have any question. After you have addressed these comments and requests, please upload the revision to Zenodo and send me the link to the new version. When creating the new version, please edit the date of the Zenodo record to reflect when you have made the changes.
 {% if endmessage %}
 {{ endmessage }}
 {% endif %}
