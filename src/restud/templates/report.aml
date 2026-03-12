@@ -1,25 +1,25 @@
 # Sample AML Report Format
 
 [metadata]
-version = 3
-author = "Author_Name"
-email = "email@example.com"
-replicator = "Replicator_Name"
-title = "Paper Title"
 manuscript_id = "12345"
-salutation = "name"
+corresponding_author = "Author_Name"
+email = "email@example.com"
+title = "Paper Title"
+salutation = "Dear firstname"
+replicator = "Replicator_Name"
 
 # start and/or summarize your report here
 [beginning]
 
 # list requests here, one per line, starting with a dash (-)
 # requests may be multiline, e.g. if you/paste error messages
+# any comments start with a # and are ignored by the parser
 [requests]
 
 # list recommendations here, one per line, starting with a dash (-)
 [recommendations]
 
-# anything to add at the end before salutation goes here
+# anything to add at the end before the final salutation goes here
 [endmessage]
 
 # TAG USAGE:
