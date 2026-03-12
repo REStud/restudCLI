@@ -250,8 +250,8 @@ def accept(ctx, no_commit):
         subprocess.run(['git', 'add', 'accept.txt'], check=True)
 
         # Check if there are staged changes to commit
-        status_result = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, check=True)
-        if status_result.stdout.strip():
+        staged_result = subprocess.run(['git', 'diff', '--cached', '--quiet'], capture_output=True)
+        if staged_result.returncode != 0:
             # There are changes to commit
             subprocess.run(['git', 'commit', '-m', 'acceptance message'], check=True)
             subprocess.run(['git', 'push'], check=True)
