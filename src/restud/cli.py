@@ -31,13 +31,6 @@ import toml
 from tqdm import tqdm
 from rich.console import Console
 from rich.prompt import Prompt
-from rich.panel import Panel
-from rich.text import Text
-from prompt_toolkit import prompt
-from prompt_toolkit.history import InMemoryHistory
-from prompt_toolkit.formatted_text import HTML
-from prompt_toolkit.completion import PathCompleter
-from prompt_toolkit.key_binding import KeyBindings
 
 from restud.render_jinja2 import ReportRenderer
 from restud.render_aml import AMLReportRenderer
@@ -121,36 +114,6 @@ def get_report_status():
 
     except Exception:
         return "report"  # Error reading, just show basic status
-
-
-def create_shell_prompt():
-    """Create a rich shell prompt with status indicators."""
-    prompt_parts = []
-
-    # Add folder name
-    folder = get_current_folder()
-    prompt_parts.append(f"[bold blue]{folder}[/bold blue]")
-
-    # Add git branch if available
-    branch = get_git_branch()
-    if branch:
-        prompt_parts.append(f"[yellow]({branch})[/yellow]")
-
-    # Add report status if report.yaml exists
-    report_status = get_report_status()
-    if report_status == "good":
-        prompt_parts.append("[green]report[/green]")
-    elif report_status == "issues":
-        prompt_parts.append("[red]report[/red]")
-    elif report_status == "report":
-        prompt_parts.append("[dim]report[/dim]")
-
-    # Add accepted tag if it exists
-    if get_git_accepted_tag():
-        prompt_parts.append("[bold green]accepted[/bold green]")
-
-    # Join with spaces and add the prompt symbol
-    return " ".join(prompt_parts) + " [bold]>[/bold] "
 
 
 # ---------------------------------------------------------------------------
@@ -321,27 +284,6 @@ def track_event(pkg_id: str, event: str, value: str = '', ctx=None):
         _gh_api_put_packages(packages, sha, f"track {pkg_id}: {event}")
     except Exception as e:
         console.print(f"[yellow]Warning: tracking update failed ({event}): {e}[/yellow]")
-
-
-def rich_to_html_prompt(rich_markup):
-    """Convert rich markup to HTML for prompt-toolkit."""
-    # Simple conversion for basic rich markup to HTML
-    html = rich_markup
-    html = html.replace("[bold blue]", '<ansiblue><b>')
-    html = html.replace("[/bold blue]", '</b></ansiblue>')
-    html = html.replace("[yellow]", '<ansiyellow>')
-    html = html.replace("[/yellow]", '</ansiyellow>')
-    html = html.replace("[green]", '<ansigreen>')
-    html = html.replace("[/green]", '</ansigreen>')
-    html = html.replace("[red]", '<ansired>')
-    html = html.replace("[/red]", '</ansired>')
-    html = html.replace("[bold green]", '<ansigreen><b>')
-    html = html.replace("[/bold green]", '</b></ansigreen>')
-    html = html.replace("[dim]", '<ansiblack>')
-    html = html.replace("[/dim]", '</ansiblack>')
-    html = html.replace("[bold]", '<b>')
-    html = html.replace("[/bold]", '</b>')
-    return html
 
 
 @click.group()
@@ -1211,134 +1153,6 @@ def dashboard(ctx):
         tmp_path = f.name
     webbrowser.open(f'file://{tmp_path}')
     console.print(f"[green]Dashboard opened in browser.[/green]")
-
-
-@cli.command()
-@click.pass_context
-def shell(ctx):
-    """Start interactive REStud shell.
-
-    Launches an interactive shell with REStud command support, command history,
-    tab completion, and status indicators (branch, report status, accepted tag).
-
-    Built-in commands:
-        cd DIRECTORY   Change directory
-        help           Show available commands
-        exit           Quit the shell
-
-    REStud commands are available directly in the shell.
-    Non-REStud commands are passed to the system shell.
-    """
-    console = Console()
-    user_shell = os.environ.get('SHELL', '/bin/bash')
-
-    # Welcome message
-    welcome_text = Text()
-    welcome_text.append("REStud Interactive Shell", style="bold blue")
-    welcome_text.append("\nType 'exit' to quit, 'help' for available commands", style="dim")
-    welcome_text.append("\nArrow keys, command history, and tab completion are supported", style="dim")
-
-    console.print(Panel(welcome_text, border_style="blue"))
-
-    # Available commands for completion
-    restud_commands = [cmd.name for cmd in cli.commands.values() if cmd.name != 'shell']
-
-    # Create command history and tab completion
-    history = InMemoryHistory()
-    completer = PathCompleter()
-
-    # Create key bindings for tab completion
-    bindings = KeyBindings()
-
-    while True:
-        try:
-            # Create dynamic prompt with status indicators
-            prompt_text = create_shell_prompt()
-            html_prompt = rich_to_html_prompt(prompt_text)
-
-            # Use prompt-toolkit for readline support with tab completion
-            command = prompt(
-                HTML(html_prompt),
-                history=history,
-                completer=completer,
-                key_bindings=bindings,
-                complete_style='column'
-            ).strip()
-
-            if not command:
-                continue
-
-            if command == 'exit':
-                break
-
-            if command == 'help':
-                console.print(f"[bold]Available REStud commands:[/bold] {', '.join(restud_commands)}")
-                console.print("[bold]Built-in commands:[/bold] cd")
-                console.print("[dim]Other commands are passed to your shell[/dim]")
-                continue
-
-            # Split command into parts
-            parts = command.split()
-            command_name = parts[0]
-
-            # Check if it's a REStud command
-            if command_name in restud_commands:
-                try:
-                    # Execute REStud command - need to parse arguments properly
-                    cmd = cli.commands[command_name]
-                    # Create a new context for the subcommand
-                    sub_ctx = click.Context(cmd, parent=ctx)
-
-                    # Parse arguments based on command signature
-                    if command_name == 'pull' and len(parts) > 1:
-                        ctx.invoke(cmd, package_name=parts[1])
-                    elif command_name == 'new' and len(parts) > 1:
-                        ctx.invoke(cmd, package_name=parts[1])
-                    elif command_name == 'download' and len(parts) > 1:
-                        ctx.invoke(cmd, zenodo_url=parts[1])
-                    elif command_name == 'report' and len(parts) > 1:
-                        ctx.invoke(cmd, branch_name=parts[1])
-                    elif command_name == 'accept':
-                        ctx.invoke(cmd)
-                    else:
-                        console.print(f"[yellow]Usage: {command_name} [arguments][/yellow]")
-
-                except Exception as e:
-                    console.print(f"[red]Error executing REStud command:[/red] {e}")
-            elif command_name == 'cd':
-                # Special case for cd command - implement in Python
-                try:
-                    if len(parts) == 1:
-                        # cd with no arguments goes to home directory
-                        target_dir = os.path.expanduser('~')
-                    else:
-                        # cd with path argument
-                        target_dir = os.path.expanduser(parts[1])
-
-                    # Change directory
-                    os.chdir(target_dir)
-                    console.print(f"[dim]Changed to: {os.getcwd()}[/dim]")
-
-                except FileNotFoundError:
-                    console.print(f"[red]cd: no such file or directory: {parts[1] if len(parts) > 1 else '~'}[/red]")
-                except PermissionError:
-                    console.print(f"[red]cd: permission denied: {parts[1] if len(parts) > 1 else '~'}[/red]")
-                except Exception as e:
-                    console.print(f"[red]cd: {e}[/red]")
-            else:
-                # Pass to user's shell
-                try:
-                    result = subprocess.run(command, shell=True, check=False)
-                    if result.returncode != 0 and result.returncode != 130:  # 130 is Ctrl+C
-                        console.print(f"[yellow]Command exited with code {result.returncode}[/yellow]")
-                except KeyboardInterrupt:
-                    console.print("[yellow]Interrupted[/yellow]")
-                    continue
-
-        except (EOFError, KeyboardInterrupt):
-            break
-
-    console.print("[blue]Exiting REStud shell[/blue]")
 
 
 # Helper functions
