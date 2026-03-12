@@ -228,7 +228,7 @@ def accept(ctx, no_commit):
         if not is_valid:
             click.echo(f"[ERROR] {msg}", err=True)
             return
-        acceptance = renderer.generate_report('report.aml', 'accept1.jinja2',
+        acceptance = renderer.generate_report('report.aml', 'response-accept.jinja2',
                                                extra_context={'branch_name': branch_name})
     else:
         renderer = ReportRenderer(templates_dir)
@@ -236,7 +236,7 @@ def accept(ctx, no_commit):
         if not is_valid:
             click.echo(f"[ERROR] {msg}", err=True)
             return
-        acceptance = renderer.generate_report('report.toml', 'accept1.jinja2',
+        acceptance = renderer.generate_report('report.toml', 'response-accept.jinja2',
                                                extra_context={'branch_name': branch_name})
 
     # Write acceptance to file
@@ -550,9 +550,10 @@ def download(ctx, record_id):
 @cli.command()
 @click.argument('branch_name', required=False)
 @click.option('--no-commit', is_flag=True, help='Generate report without committing and pushing')
+@click.option('--needspackage', is_flag=True, help='Use needs-replication-package template')
 @click.pass_context
-def report(ctx, branch_name, no_commit):
-    """Generate and commit report.
+def revise(ctx, branch_name, no_commit, needspackage):
+    """Generate revision report message.
 
     Generates response.txt from report.aml using the appropriate Jinja2 template based on
     the branch version. Commits and pushes changes (unless --no-commit).
@@ -560,8 +561,6 @@ def report(ctx, branch_name, no_commit):
     Args:
         BRANCH_NAME: Optional branch name (defaults to current branch)
 
-    Options:
-        --no-commit    Generate report without committing and pushing
     """
     # Get current branch if not specified
     if not branch_name:
@@ -569,6 +568,7 @@ def report(ctx, branch_name, no_commit):
         branch_name = result.stdout.strip()
 
     templates_dir = get_template_path('.')
+    template_name = 'response-needRP.jinja2' if needspackage else 'response-revise.jinja2'
 
     # Prefer report.aml if present, fall back to report.toml
     if os.path.exists('report.aml'):
@@ -577,7 +577,7 @@ def report(ctx, branch_name, no_commit):
         if not is_valid:
             click.echo(f"[ERROR] {msg}", err=True)
             return
-        response = renderer.generate_report('report.aml', 'response1.jinja2',
+        response = renderer.generate_report('report.aml', template_name,
                                              extra_context={'branch_name': branch_name})
         report_file = 'report.aml'
     else:
@@ -586,7 +586,7 @@ def report(ctx, branch_name, no_commit):
         if not is_valid:
             click.echo(f"[ERROR] {msg}", err=True)
             return
-        response = renderer.generate_report('report.toml', 'response1.jinja2',
+        response = renderer.generate_report('report.toml', template_name,
                                              extra_context={'branch_name': branch_name})
         report_file = 'report.toml'
 
