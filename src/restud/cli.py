@@ -125,14 +125,73 @@ def _today():
     return date.today().isoformat()
 
 
+def _get_local_config() -> dict:
+    """Read ~/.config/restud/config.toml. Returns empty dict if not found."""
+    config_file = os.path.expanduser('~/.config/restud/config.toml')
+    if not os.path.exists(config_file):
+        return {}
+    try:
+        with open(config_file, 'r') as f:
+            return toml.load(f)
+    except Exception:
+        return {}
+
+
+def _save_local_config(cfg: dict):
+    """Write ~/.config/restud/config.toml."""
+    config_file = os.path.expanduser('~/.config/restud/config.toml')
+    os.makedirs(os.path.dirname(config_file), exist_ok=True)
+    with open(config_file, 'w') as f:
+        toml.dump(cfg, f)
+
+
 def _get_replicator():
-    """Return GitHub username, falling back to $USER."""
+    """Return replicator name from local config, falling back to GitHub username or $USER."""
+    name = _get_local_config().get('name', '')
+    if name:
+        return name
     try:
         r = subprocess.run(['gh', 'api', 'user', '--jq', '.login'], capture_output=True, text=True)
-        name = r.stdout.strip()
-        return name if name else os.environ.get('USER', 'unknown')
+        gh_name = r.stdout.strip()
+        return gh_name if gh_name else os.environ.get('USER', 'unknown')
     except Exception:
         return os.environ.get('USER', 'unknown')
+
+
+def _get_known_replicators() -> list:
+    """Return sorted list of unique replicator names found in packages.toml."""
+    try:
+        packages, _ = _gh_api_get_packages()
+        names = set()
+        for pkg in packages.values():
+            for v in pkg.get('versions', []):
+                name = v.get('replicator', '').strip()
+                if name:
+                    names.add(name)
+        return sorted(names)
+    except Exception:
+        return []
+
+
+def _resolve_assign(assign) -> str:
+    """Resolve --assign value: if empty string (flag given without value), prompt from known replicators."""
+    if assign is None:
+        return None
+    if assign != '':
+        return assign
+    # Flag used without a value — list known replicators and let user pick
+    console = Console()
+    names = _get_known_replicators()
+    if names:
+        console.print("[bold]Known replicators:[/bold]")
+        for i, name in enumerate(names, 1):
+            console.print(f"  {i}. {name}")
+        choice = Prompt.ask("Enter number or type a name", console=console).strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(names):
+            return names[int(choice) - 1]
+        return choice or None
+    else:
+        return Prompt.ask("Replicator name", console=console).strip() or None
 
 
 def _gh_api_get_packages():
@@ -243,43 +302,52 @@ def track_event(pkg_id: str, event: str, value: str = '', ctx=None, date: str = 
         packages, sha = _gh_api_get_packages()
         pkg = _pkg_record(packages, pkg_id)
         ver_num = _current_version_number()
-        ver = _version_record(pkg, ver_num)
         today = date if date else _today()
 
+        # Package-level events — no version record needed
         if event == 'received':
-            pkg['date_received'] = pkg['date_received'] or today
+            if pkg.get('status') == 'withdrawn':
+                # Re-submission after withdrawal: reset version history and dates for a clean slate
+                pkg['versions'] = []
+                pkg['date_received'] = today
+                pkg['date_accepted'] = ''
+            else:
+                pkg['date_received'] = pkg['date_received'] or today
             pkg['status'] = 'new'
-        elif event == 'downloaded':
-            ver['date_downloaded'] = ver['date_downloaded'] or today
-            pkg['status'] = 'assigned' if ver_num == 1 else 'resubmitted'
-        elif event == 'report_sent':
-            ver['date_report_sent'] = ver['date_report_sent'] or today
-            pkg['status'] = 'with-authors'
         elif event == 'accepted':
             pkg['date_accepted'] = pkg['date_accepted'] or today
             pkg['status'] = 'accepted'
-        elif event == 'decision_sent':
-            ver['date_decision_sent'] = ver['date_decision_sent'] or today
-        elif event == 'hours':
-            ver['hours'] = round(ver['hours'] + float(value), 2)
         elif event == 'status':
             pkg['status'] = value
-        elif event == 'zenodo_id':
-            ver['zenodo_id'] = value
-        elif event == 'zenodo_url':
-            ver['zenodo_url'] = value
-        elif event == 'replicator':
-            ver['replicator'] = value
-        elif event == 'recommendation':
-            ver['recommendation'] = value
-        elif event == 'de_decision':
-            ver['de_decision'] = value
-        elif event == 'software':
-            ver['software'] = [s.strip() for s in value.split(',') if s.strip()]
-        elif event == 'data_availability':
-            ver['data_availability'] = value
-        elif event == 'comments':
-            ver['comments'] = value
+        else:
+            # Version-level events — create/fetch version record only when needed
+            ver = _version_record(pkg, ver_num)
+            if event == 'downloaded':
+                ver['date_downloaded'] = ver['date_downloaded'] or today
+                pkg['status'] = 'assigned' if ver_num == 1 else 'resubmitted'
+            elif event == 'report_sent':
+                ver['date_report_sent'] = ver['date_report_sent'] or today
+                pkg['status'] = 'with-authors'
+            elif event == 'decision_sent':
+                ver['date_decision_sent'] = ver['date_decision_sent'] or today
+            elif event == 'hours':
+                ver['hours'] = round(ver['hours'] + float(value), 2)
+            elif event == 'zenodo_id':
+                ver['zenodo_id'] = value
+            elif event == 'zenodo_url':
+                ver['zenodo_url'] = value
+            elif event == 'replicator':
+                ver['replicator'] = value
+            elif event == 'recommendation':
+                ver['recommendation'] = value
+            elif event == 'de_decision':
+                ver['de_decision'] = value
+            elif event == 'software':
+                ver['software'] = [s.strip() for s in value.split(',') if s.strip()]
+            elif event == 'data_availability':
+                ver['data_availability'] = value
+            elif event == 'comments':
+                ver['comments'] = value
 
         _gh_api_put_packages(packages, sha, f"track {pkg_id}: {event}")
     except Exception as e:
@@ -325,8 +393,12 @@ def pull(ctx, package_name):
 
 @cli.command()
 @click.option('--no-commit', is_flag=True, help='Generate acceptance message without committing and pushing')
+@click.option('--notrack', is_flag=True, default=False, help='Disable tracking for this invocation.')
 @click.pass_context
-def accept(ctx, no_commit):
+def accept(ctx, no_commit, notrack):
+    if notrack:
+        ctx.ensure_object(dict)
+        ctx.obj['notrack'] = True
     """Generate acceptance message.
 
     Creates an acceptance message based on the current version branch and report.aml.
@@ -416,8 +488,12 @@ def _parse_date_flag(value: str) -> str:
 @click.argument('package_name')
 @click.option('--date', '-d', 'received_date', default=None,
               help='Set date_received: integer offset from today (e.g. -1 for yesterday) or MM-DD.')
+@click.option('--notrack', is_flag=True, default=False, help='Disable tracking for this invocation.')
 @click.pass_context
-def new(ctx, package_name, received_date):
+def new(ctx, package_name, received_date, notrack):
+    if notrack:
+        ctx.ensure_object(dict)
+        ctx.obj['notrack'] = True
     """Create new replication package.
 
     Initializes a new local repository with report.aml template, creates a remote GitHub
@@ -495,8 +571,14 @@ def new(ctx, package_name, received_date):
 
 @cli.command()
 @click.argument('zenodo_url')
+@click.option('--assign', '-a', default=None, is_flag=False, flag_value='',
+              help='Override replicator name (superuser only). Omit value to pick from list.')
+@click.option('--notrack', is_flag=True, default=False, help='Disable tracking for this invocation.')
 @click.pass_context
-def download_withurl(ctx, zenodo_url):
+def download_withurl(ctx, zenodo_url, assign, notrack):
+    if notrack:
+        ctx.ensure_object(dict)
+        ctx.obj['notrack'] = True
     """Download package from Zenodo via URL.
 
     Downloads and imports replication package files from Zenodo (published or preview records).
@@ -506,6 +588,11 @@ def download_withurl(ctx, zenodo_url):
     Args:
         ZENODO_URL: URL to the Zenodo record or preview record
     """
+    if assign is not None and not _get_local_config().get('superuser', False):
+        click.echo('[ERROR] --assign requires superuser = true in ~/.config/restud/config.toml', err=True)
+        sys.exit(1)
+    assign = _resolve_assign(assign)
+
     branch = get_git_branch()
     if branch != 'author':
         click.echo('You must be on the author branch to download from Zenodo. Changing to author branch now.')
@@ -593,12 +680,20 @@ def download_withurl(ctx, zenodo_url):
     if m:
         track_event(pkg_id, 'zenodo_id', m.group(1), ctx=ctx)
     track_event(pkg_id, 'zenodo_url', zenodo_url, ctx=ctx)
+    if assign:
+        track_event(pkg_id, 'replicator', assign, ctx=ctx)
 
 
 @cli.command()
 @click.argument('record_id')
+@click.option('--assign', '-a', default=None, is_flag=False, flag_value='',
+              help='Override replicator name (superuser only). Omit value to pick from list.')
+@click.option('--notrack', is_flag=True, default=False, help='Disable tracking for this invocation.')
 @click.pass_context
-def download(ctx, record_id):
+def download(ctx, record_id, assign, notrack):
+    if notrack:
+        ctx.ensure_object(dict)
+        ctx.obj['notrack'] = True
     """Download package from Zenodo draft using record ID.
 
     Downloads from a Zenodo draft record by ID. Downloads all available files.
@@ -607,6 +702,11 @@ def download(ctx, record_id):
     Args:
         RECORD_ID: Zenodo draft record ID (numeric)
     """
+    if assign is not None and not _get_local_config().get('superuser', False):
+        click.echo('[ERROR] --assign requires superuser = true in ~/.config/restud/config.toml', err=True)
+        sys.exit(1)
+    assign = _resolve_assign(assign)
+
     # Get Zenodo API key
     zenodo_key = _get_zenodo_key()
 
@@ -638,7 +738,7 @@ def download(ctx, record_id):
         size_mb = file_info.get('size', 0) / (1024 * 1024)
         console.print(f"  {idx}. {file_info['key']} ({size_mb:.2f} MB)")
 
-    _download_multiple_files(record_id, files, zenodo_key, ctx=ctx)
+    _download_multiple_files(record_id, files, zenodo_key, ctx=ctx, assign=assign)
 
 
 @cli.command()
@@ -647,8 +747,12 @@ def download(ctx, record_id):
 @click.option('--needspackage', is_flag=True, help='Use needs-replication-package template')
 @click.option('--track', 'do_track', is_flag=True, default=False,
               help='Record report_sent event in tracking database (off by default).')
+@click.option('--notrack', is_flag=True, default=False, help='Disable tracking for this invocation.')
 @click.pass_context
-def revise(ctx, branch_name, no_commit, needspackage, do_track):
+def revise(ctx, branch_name, no_commit, needspackage, do_track, notrack):
+    if notrack:
+        ctx.ensure_object(dict)
+        ctx.obj['notrack'] = True
     """Generate revision report message.
 
     Generates response.txt from report.aml using the appropriate Jinja2 template based on
@@ -847,10 +951,12 @@ def track_comment(ctx, value):
 
 
 @track.command('show')
+@click.option('-p', '--package', 'pkg_override', default=None,
+              help='Package number (overrides group -p and current folder name)')
 @click.pass_context
-def track_show(ctx):
+def track_show(ctx, pkg_override):
     """Show tracking record for the current (or -p) package."""
-    pkg_id = ctx.obj['pkg_id']
+    pkg_id = pkg_override or ctx.obj['pkg_id']
     try:
         packages, _ = _gh_api_get_packages()
     except Exception as e:
@@ -1033,17 +1139,32 @@ def reinstall(ctx, branch, use_pip, use_ssh, accre):
         if accre:
             use_pip = True
             use_ssh = True
+
+        repo_url = 'git@github.com:REStud/restudCLI.git' if use_ssh else 'https://github.com/REStud/restudCLI.git'
+
+        # Ensure we target a branch head explicitly (avoid ambiguity with tags/other refs).
+        branch_ref = f'refs/heads/{branch}'
+
+        branch_check = subprocess.run(
+            ['git', 'ls-remote', '--heads', repo_url, branch_ref],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        if not branch_check.stdout.strip():
+            raise ValueError(f"Remote branch '{branch}' was not found on origin")
+
         if use_ssh:
-            git_url = f'git+ssh://git@github.com/REStud/restudCLI.git@{branch}'
+            git_url = f'git+ssh://git@github.com/REStud/restudCLI.git@{branch_ref}'
         else:
-            git_url = f'git+https://github.com/REStud/restudCLI.git@{branch}'
+            git_url = f'git+https://github.com/REStud/restudCLI.git@{branch_ref}'
 
         if use_pip:
             console.print("[dim]Using pip for installation...[/dim]")
             env = os.environ.copy()
             env['TMPDIR'] = '/tmp'
             subprocess.run(
-                ['pip', 'install', '--upgrade', '--no-cache-dir', '--user', git_url],
+                [sys.executable, '-m', 'pip', 'install', '--upgrade', '--force-reinstall', '--no-cache-dir', '--user', git_url],
                 check=True,
                 env=env
             )
@@ -1088,6 +1209,35 @@ def dashboard(ctx):
     console.print(f"[green]Dashboard opened in browser.[/green]")
 
 
+@cli.command(name='config')
+@click.option('--name', 'set_name', default=None, help='Set your replicator display name.')
+@click.option('--superuser', 'superuser_true', is_flag=True, default=False, help='Grant superuser privileges (enables --assign).')
+@click.option('--no-superuser', 'superuser_false', is_flag=True, default=False, help='Revoke superuser privileges.')
+@click.pass_context
+def config_cmd(ctx, set_name, superuser_true, superuser_false):
+    """Show or update local restud config (~/.config/restud/config.toml)."""
+    cfg = _get_local_config()
+    is_superuser = cfg.get('superuser', False)
+    changed = False
+    if set_name is not None:
+        cfg['name'] = set_name
+        changed = True
+    if superuser_true or superuser_false:
+        if not is_superuser:
+            click.echo('[ERROR] Only an existing superuser can change superuser status.', err=True)
+            sys.exit(1)
+        cfg['superuser'] = bool(superuser_true)
+        changed = True
+    if changed:
+        _save_local_config(cfg)
+        click.echo('Config updated.')
+    console = Console()
+    console.print(f"\n[bold]Local config[/bold] (~/.config/restud/config.toml)")
+    console.print(f"  name      : {cfg.get('name', '(not set — using GitHub username)')}")
+    console.print(f"  superuser : {cfg.get('superuser', False)}")
+    console.print()
+
+
 # Helper functions
 def _get_zenodo_key():
     """Get Zenodo API key from config file."""
@@ -1129,7 +1279,7 @@ def _download_zenodo_preview(url):
     os.remove('repo.zip')
 
 
-def _download_multiple_files(record_id, files, zenodo_key, ctx=None):
+def _download_multiple_files(record_id, files, zenodo_key, ctx=None, assign=None):
     """Download multiple files from Zenodo draft.
 
     Downloads all files, unzips only .zip files, and keeps other files as-is.
@@ -1215,6 +1365,9 @@ def _download_multiple_files(record_id, files, zenodo_key, ctx=None):
         track_event(pkg_id, 'zenodo_id', str(record_id), ctx=ctx)
         track_event(pkg_id, 'zenodo_url', f'https://zenodo.org/records/{record_id}', ctx=ctx)
         track_event(pkg_id, 'downloaded', ctx=ctx)
+        if assign:
+            track_event(pkg_id, 'replicator', assign, ctx=ctx)
+        console.print(f"[green]Tracking updated for {pkg_id}: downloaded (zenodo {record_id}{', replicator: ' + assign if assign else ''})[/green]")
     else:
         # Subsequent downloads: version branches already exist
         if not has_changes:
@@ -1243,10 +1396,13 @@ def _download_multiple_files(record_id, files, zenodo_key, ctx=None):
                 _copy_report_from_previous_version(latest_version)
                 subprocess.run(['git', 'push', '-u', 'origin', f'version{new_version}'], check=True)
                 console.print(f'Created version{new_version} and pushed to remote')
-            pkg_id = get_current_folder()
-            track_event(pkg_id, 'zenodo_id', str(record_id), ctx=ctx)
-            track_event(pkg_id, 'zenodo_url', f'https://zenodo.org/records/{record_id}', ctx=ctx)
-            track_event(pkg_id, 'downloaded', ctx=ctx)
+        pkg_id = get_current_folder()
+        track_event(pkg_id, 'zenodo_id', str(record_id), ctx=ctx)
+        track_event(pkg_id, 'zenodo_url', f'https://zenodo.org/records/{record_id}', ctx=ctx)
+        track_event(pkg_id, 'downloaded', ctx=ctx)
+        if assign:
+            track_event(pkg_id, 'replicator', assign, ctx=ctx)
+        console.print(f"[green]Tracking updated for {pkg_id}: downloaded (zenodo {record_id}{', replicator: ' + assign if assign else ''})[/green]")
 
 def _create_cookie():
     """Create new Zenodo session cookie."""
