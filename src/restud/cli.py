@@ -43,17 +43,13 @@ GITHUB_ORG = 'restud-replication-packages'
 ADMIN_ORG = 'REStud'
 ADMIN_REPO = 'packages-admin'
 ADMIN_FILE = 'packages.toml'
-
-
 def get_template_path(filename):
     """Get path to template file from package resources."""
     try:
-        # Use importlib.resources for modern Python
         template_files = files('restud.templates')
         template_file = template_files / filename
         return str(template_file)
-    except:
-        # Fallback for development
+    except Exception:
         return os.path.join(os.path.dirname(__file__), 'templates', filename)
 
 
@@ -66,9 +62,9 @@ def get_git_branch():
     """Get current git branch, if any."""
     try:
         result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'],
-                               capture_output=True, text=True, check=True)
+                                capture_output=True, text=True, check=True)
         return result.stdout.strip()
-    except:
+    except Exception:
         return None
 
 
@@ -76,9 +72,9 @@ def get_git_accepted_tag():
     """Check if 'accepted' tag exists in the repo."""
     try:
         result = subprocess.run(['git', 'tag', '-l', 'accepted'],
-                               capture_output=True, text=True, check=True)
+                                capture_output=True, text=True, check=True)
         return result.stdout.strip() == 'accepted'
-    except:
+    except Exception:
         return False
 
 
@@ -88,7 +84,6 @@ def get_report_status():
         return None
 
     try:
-        # Load report.yaml with template anchors
         from yamlcore import CoreLoader
         tags_file = get_template_path('template-answers.yaml')
         with open('report.yaml', 'r', encoding='utf-8') as f_report, open(tags_file, 'r', encoding='utf-8') as f_tags:
@@ -96,25 +91,17 @@ def get_report_status():
         content = yaml.load(combined, Loader=CoreLoader)
 
         if not content or content.get('version', 1) < 2:
-            return "report"  # Old format, can't determine status
+            return "report"
 
-        # Check DCAS_rules
         dcas_rules = content.get('DCAS_rules', [])
         if not dcas_rules:
             return "report"
 
-        # Check if any rules have "no" answers (issues)
-        has_issues = False
-        for rule in dcas_rules:
-            answer = rule.get('answer', '').lower()
-            if answer == 'no':
-                has_issues = True
-                break
-
+        has_issues = any((rule.get('answer', '').lower() == 'no') for rule in dcas_rules)
         return "issues" if has_issues else "good"
 
     except Exception:
-        return "report"  # Error reading, just show basic status
+        return "report"
 
 
 # ---------------------------------------------------------------------------
@@ -274,27 +261,172 @@ def _current_version_number() -> int:
         return 1
 
 
+ASSIGNMENT_TASKS = ('replication', 'decision')
+ASSIGNMENT_RESOLUTIONS = {
+    'accept': 'Accept',
+    'r&r': 'R&R',
+    'rr': 'R&R',
+    'minor': 'Minor',
+    'question me': 'Question ME',
+    'question de': 'Question DE',
+    'question authors': 'Question Authors',
+}
+
+
+def _is_superuser() -> bool:
+    return _get_local_config().get('superuser', False)
+
+
+def _normalise_resolution(value: str) -> str:
+    key = (value or '').strip().lower()
+    if key not in ASSIGNMENT_RESOLUTIONS:
+        valid = ', '.join(['Accept', 'R&R', 'Minor', 'Question ME', 'Question DE', 'Question Authors'])
+        raise ValueError(f"Unknown resolution '{value}'. Choose one of: {valid}")
+    return ASSIGNMENT_RESOLUTIONS[key]
+
+
+def _resolve_followup_assignee(resolution: str) -> str:
+    if resolution == 'Question ME':
+        return 'me'
+    if resolution == 'Question DE':
+        return 'de'
+    return 'authors'
+
+
+def _assign_task_for_assignee(assignee: str) -> str:
+    return 'decision' if assignee.lower() == 'de' else 'replication'
+
+
+def _version_assignments(version_record: dict) -> list:
+    return version_record.setdefault('assignments', [])
+
+
+def _next_assignment_id(assignments: list) -> int:
+    ids = [int(a.get('id', 0)) for a in assignments if str(a.get('id', '')).isdigit()]
+    return (max(ids) + 1) if ids else 1
+
+
+def _append_assignment(version_record: dict, assignee: str, task: str, assigned_by: str, assigned_date: str) -> dict:
+    assignments = _version_assignments(version_record)
+    if assignments:
+        last = assignments[-1]
+        if (not last.get('resolved_date') and
+                last.get('assignee', '').lower() == assignee.lower() and
+                last.get('task', '') == task):
+            return last
+
+    assignment = {
+        'id': _next_assignment_id(assignments),
+        'task': task,
+        'assignee': assignee,
+        'assigned_by': assigned_by,
+        'assigned_date': assigned_date,
+        'resolved_date': '',
+        'resolved_by': '',
+        'resolution': '',
+    }
+    assignments.append(assignment)
+    return assignment
+
+
+def _open_assignment(version_record: dict) -> Optional[dict]:
+    assignments = _version_assignments(version_record)
+    for assignment in reversed(assignments):
+        if not assignment.get('resolved_date'):
+            return assignment
+    return None
+
+
+def _track_assign(pkg_id: str, assignee: str, task: str, ctx=None,
+                  assigned_date: str = '', assigned_by: Optional[str] = None,
+                  message: str = '') -> dict:
+    console = Console()
+    if ctx is not None and ctx.obj and ctx.obj.get('notrack'):
+        return {}
+
+    task_clean = (task or '').strip().lower()
+    if task_clean not in ASSIGNMENT_TASKS:
+        raise ValueError(f"Unknown task '{task}'. Use one of: {', '.join(ASSIGNMENT_TASKS)}")
+
+    who_assigned = assigned_by or _get_replicator()
+    when_assigned = assigned_date or _today()
+
+    packages, sha = _gh_api_get_packages()
+    pkg = _pkg_record(packages, pkg_id)
+    ver = _version_record(pkg, _current_version_number())
+    assignment = _append_assignment(ver, assignee=assignee, task=task_clean,
+                                    assigned_by=who_assigned, assigned_date=when_assigned)
+
+    if assignee.lower() == 'authors':
+        pkg['status'] = 'with-authors'
+    elif assignee.lower() == 'de':
+        pkg['status'] = 'with-de'
+    elif assignee.lower() == 'me':
+        pkg['status'] = 'with-me'
+    else:
+        pkg['status'] = 'assigned'
+
+    commit_msg = message or f"track {pkg_id}: assign v{ver.get('version')} #{assignment['id']}"
+    _gh_api_put_packages(packages, sha, commit_msg)
+    console.print(f"[green]Assignment #{assignment['id']} set: {task_clean} → {assignee} ({when_assigned})[/green]")
+    return assignment
+
+
+def _track_resolve(pkg_id: str, resolution: str, ctx=None,
+                   resolved_date: str = '', followup_assignee: Optional[str] = None,
+                   resolved_by: Optional[str] = None) -> dict:
+    console = Console()
+    if ctx is not None and ctx.obj and ctx.obj.get('notrack'):
+        return {}
+
+    canonical_resolution = _normalise_resolution(resolution)
+    who_resolved = resolved_by or _get_replicator()
+    when_resolved = resolved_date or _today()
+
+    packages, sha = _gh_api_get_packages()
+    pkg = _pkg_record(packages, pkg_id)
+    ver = _version_record(pkg, _current_version_number())
+    active = _open_assignment(ver)
+    if not active:
+        raise ValueError('No open assignment found for this version. Use track assign first.')
+
+    active['resolved_date'] = when_resolved
+    active['resolved_by'] = who_resolved
+    active['resolution'] = canonical_resolution
+
+    next_assignee = (followup_assignee or _resolve_followup_assignee(canonical_resolution)).strip()
+    next_task = _assign_task_for_assignee(next_assignee)
+    next_assignment = _append_assignment(
+        ver,
+        assignee=next_assignee,
+        task=next_task,
+        assigned_by=who_resolved,
+        assigned_date=when_resolved,
+    )
+
+    if next_assignee.lower() == 'authors':
+        pkg['status'] = 'with-authors'
+    elif next_assignee.lower() == 'de':
+        pkg['status'] = 'with-de'
+    elif next_assignee.lower() == 'me':
+        pkg['status'] = 'with-me'
+    else:
+        pkg['status'] = 'assigned'
+
+    _gh_api_put_packages(packages, sha,
+                         f"track {pkg_id}: resolve v{ver.get('version')} #{active.get('id')} ({canonical_resolution})")
+    console.print(
+        f"[green]Resolved assignment #{active.get('id')} as {canonical_resolution}; "
+        f"next assignment #{next_assignment.get('id')} → {next_assignee}[/green]"
+    )
+    return {'resolved': active, 'next': next_assignment}
+
+
 def track_event(pkg_id: str, event: str, value: str = '', ctx=None, date: str = ''):
     """
     Update packages.toml with a tracking event. Silent on errors —
     tracking should never break the main workflow.
     Pass click ctx to respect --notrack flag.
-
-    Events:
-        received          → date_received = today, status = new
-        downloaded        → versions[N].date_downloaded = today, status = assigned (first) / revision
-        report_sent       → versions[N].date_report_sent = today, status = recommendation
-        accepted          → date_accepted = today, status = accepted
-        decision_sent     → versions[N].date_decision_sent = today
-        hours             → versions[N].hours += float(value)
-        status            → status = value
-        zenodo_id         → versions[N].zenodo_id = value
-        replicator        → versions[N].replicator = value
-        recommendation    → versions[N].recommendation = value
-        de_decision       → versions[N].de_decision = value
-        software          → versions[N].software = value (comma-separated string → list)
-        data_availability → versions[N].data_availability = value
-        comments          → versions[N].comments = value
     """
     console = Console()
     if ctx is not None and ctx.obj and ctx.obj.get('notrack'):
@@ -305,10 +437,8 @@ def track_event(pkg_id: str, event: str, value: str = '', ctx=None, date: str = 
         ver_num = _current_version_number()
         today = date if date else _today()
 
-        # Package-level events — no version record needed
         if event == 'received':
             if pkg.get('status') == 'withdrawn':
-                # Re-submission after withdrawal: reset version history and dates for a clean slate
                 pkg['versions'] = []
                 pkg['date_received'] = today
                 pkg['date_accepted'] = ''
@@ -321,7 +451,6 @@ def track_event(pkg_id: str, event: str, value: str = '', ctx=None, date: str = 
         elif event == 'status':
             pkg['status'] = value
         else:
-            # Version-level events — create/fetch version record only when needed
             ver = _version_record(pkg, ver_num)
             if event == 'downloaded':
                 ver['date_downloaded'] = ver['date_downloaded'] or today
@@ -394,9 +523,11 @@ def pull(ctx, package_name):
 
 @cli.command()
 @click.option('--no-commit', is_flag=True, help='Generate acceptance message without committing and pushing')
+@click.option('--preview', is_flag=True,
+              help='Preview acceptance message without commit/tag/community actions or tracking updates.')
 @click.option('--notrack', is_flag=True, default=False, help='Disable tracking for this invocation.')
 @click.pass_context
-def accept(ctx, no_commit, notrack):
+def accept(ctx, no_commit, preview, notrack):
     if notrack:
         ctx.ensure_object(dict)
         ctx.obj['notrack'] = True
@@ -409,6 +540,13 @@ def accept(ctx, no_commit, notrack):
     Options:
         --no-commit    Generate message without committing, pushing, or tagging
     """
+    dry_run = no_commit or preview
+
+    if not _is_superuser() and not dry_run:
+        click.echo('[ERROR] accept is restricted to superusers.', err=True)
+        click.echo('Use --preview (or --no-commit) to render the acceptance message without modifying tracking.', err=True)
+        sys.exit(1)
+
     # Get current branch
     result = subprocess.run(['git', 'symbolic-ref', '--short', 'HEAD'], capture_output=True, text=True, check=True)
     branch_name = result.stdout.strip()
@@ -439,8 +577,8 @@ def accept(ctx, no_commit, notrack):
 
     print(acceptance)
 
-    # Commit and tag (unless --no-commit flag is set)
-    if not no_commit:
+    # Commit and tag (unless --no-commit/--preview flag is set)
+    if not dry_run:
         subprocess.run(['git', 'add', 'accept.txt'], check=True)
 
         # Check if there are staged changes to commit
@@ -463,7 +601,7 @@ def accept(ctx, no_commit, notrack):
         track_event(get_current_folder(), 'accepted', ctx=ctx)
     else:
         console = Console()
-        console.print("[yellow]Acceptance message generated without committing. Files ready for review.[/yellow]")
+        console.print("[yellow]Acceptance message generated in preview mode. No tracking or remote changes were made.[/yellow]")
 
 
 
@@ -594,95 +732,13 @@ def download_withurl(ctx, zenodo_url, assign, notrack):
         sys.exit(1)
     assign = _resolve_assign(assign)
 
-    branch = get_git_branch()
-    if branch != 'author':
-        click.echo('You must be on the author branch to download from Zenodo. Changing to author branch now.')
-        # Check for uncommitted changes to tracked files (ignore untracked files)
-        status_result = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, check=True)
-        # Filter out untracked files (lines starting with ??)
-        committed_changes = [line for line in status_result.stdout.split('\n') if line and not line.startswith('??')]
-        if committed_changes:
-            click.echo('[ERROR] You have uncommitted changes. Please commit or discard them before downloading.', err=True)
-            sys.exit(1)
-        subprocess.run(['git', 'switch', 'author'], check=True)
+    match = re.search(r'/records?/(\d+)', zenodo_url)
+    if not match:
+        click.echo('[ERROR] Could not parse Zenodo record ID from URL. Expected .../record/<id> or .../records/<id>.', err=True)
+        sys.exit(1)
 
-    _empty_folder()
-
-    # Get Zenodo API key
-    zenodo_key = _get_zenodo_key()
-
-    # Download from Zenodo
-    if "preview" in zenodo_url:
-        _download_zenodo_preview(zenodo_url)
-    else:
-        _download_zenodo(zenodo_url, zenodo_key)
-
-    # Commit changes
-    _commit_changes()
-    _check_for_files()
-
-    # Check if there are staged changes to commit
-    status_result = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, check=True)
-    has_changes = status_result.stdout.strip() != ""
-
-    if not has_changes:
-        click.echo('No changes detected. Files are already up to date.')
-        # Still checkout the latest version branch even if no changes
-        result = subprocess.run(['git', 'branch', '-a'], capture_output=True, text=True, check=True)
-        branches = [line.strip() for line in result.stdout.split('\n') if line.strip() and 'author' not in line and 'version' in line]
-        if branches:
-            latest_version = _get_latest_version()
-            if latest_version > 0:
-                subprocess.run(['git', 'checkout', f'version{latest_version}'], check=True)
-                click.echo(f'Switched to version{latest_version}')
-        _save_zenodo_metadata(zenodo_url)
-        return
-
-    # Check if other branches exist (only needed if there are changes to commit)
-    result = subprocess.run(['git', 'branch', '-a'], capture_output=True, text=True, check=True)
-    # Filter for local branches only (exclude remote branches and author)
-    branches = [line.strip() for line in result.stdout.split('\n') if line.strip() and 'author' not in line and not line.strip().startswith('remotes/')]
-
-    pkg_id = get_current_folder()
-    if not branches:
-        click.echo('No other branch than author exists')
-        subprocess.run(['git', 'commit', '-m', f'initial commit from zenodo {zenodo_url}'], check=True)
-        subprocess.run(['git', 'push', 'origin', 'author', '--set-upstream'], check=True)
-        subprocess.run(['git', 'checkout', '-b', 'version1'], check=True)
-        track_event(pkg_id, 'downloaded', ctx=ctx)
-    else:
-        click.echo('Other branches exist')
-        subprocess.run(['git', 'commit', '-m', f'update to zenodo version {zenodo_url}'], check=True)
-        subprocess.run(['git', 'push'], check=True)
-
-        latest_version = _get_latest_version()
-
-        if _version_is_empty(latest_version):
-            # version branch was created by restud new but never downloaded into
-            click.echo(f'First download: merging into existing version{latest_version}')
-            subprocess.run(['git', 'checkout', f'version{latest_version}'], check=True)
-            subprocess.run(['git', 'merge', 'author', '--no-edit'], check=True)
-            subprocess.run(['git', 'push'], check=True)
-        else:
-            new_version = latest_version + 1
-
-            # Create new version branch
-            subprocess.run(['git', 'checkout', '-b', f'version{new_version}'], check=True)
-
-            # Copy report.yaml from previous version branch and commit it
-            _copy_report_from_previous_version(latest_version)
-
-            # Push the new version branch
-            subprocess.run(['git', 'push', '-u', 'origin', f'version{new_version}'], check=True)
-        track_event(pkg_id, 'downloaded', ctx=ctx)
-
-    _save_zenodo_metadata(zenodo_url)
-    m = re.search(r'/(\d+)', zenodo_url)
-    if m:
-        track_event(pkg_id, 'zenodo_id', m.group(1), ctx=ctx)
-    track_event(pkg_id, 'zenodo_url', zenodo_url, ctx=ctx)
-    if assign:
-        track_event(pkg_id, 'replicator', assign, ctx=ctx)
+    record_id = match.group(1)
+    _download_record_by_id(record_id, ctx=ctx, assign=assign)
 
 
 @cli.command()
@@ -707,6 +763,12 @@ def download(ctx, record_id, assign, notrack):
         click.echo('[ERROR] --assign requires superuser = true in ~/.config/restud/config.toml', err=True)
         sys.exit(1)
     assign = _resolve_assign(assign)
+
+    _download_record_by_id(record_id, ctx=ctx, assign=assign)
+
+
+def _download_record_by_id(record_id, ctx=None, assign=None):
+    """Download package from Zenodo draft by record ID and process it via the shared flow."""
 
     # Get Zenodo API key
     zenodo_key = _get_zenodo_key()
@@ -745,12 +807,14 @@ def download(ctx, record_id, assign, notrack):
 @cli.command()
 @click.argument('branch_name', required=False)
 @click.option('--no-commit', is_flag=True, help='Generate report without committing and pushing')
+@click.option('--preview', is_flag=True,
+              help='Preview revision response without commit/push actions or tracking updates.')
 @click.option('--needspackage', is_flag=True, help='Use needs-replication-package template')
-@click.option('--track', 'do_track', is_flag=True, default=False,
-              help='Record report_sent event in tracking database (off by default).')
+@click.option('--track', 'track_resolution', default=None, flag_value='report',
+              help='Track workflow update; optionally provide resolution (Accept, R&R, Minor, Question ME, Question DE, Question Authors).')
 @click.option('--notrack', is_flag=True, default=False, help='Disable tracking for this invocation.')
 @click.pass_context
-def revise(ctx, branch_name, no_commit, needspackage, do_track, notrack):
+def revise(ctx, branch_name, no_commit, preview, needspackage, track_resolution, notrack):
     if notrack:
         ctx.ensure_object(dict)
         ctx.obj['notrack'] = True
@@ -794,16 +858,23 @@ def revise(ctx, branch_name, no_commit, needspackage, do_track, notrack):
     with open('response.txt', 'w') as f:
         f.write(response)
 
-    # Commit changes (unless --no-commit flag is set)
-    if not no_commit:
+    dry_run = no_commit or preview
+
+    # Commit changes (unless --no-commit/--preview flag is set)
+    if not dry_run:
         subprocess.run(['git', 'add', report_file, 'response.txt'], check=True)
         subprocess.run(['git', 'commit', '-m', 'update report'], check=True)
         subprocess.run(['git', 'push', 'origin', branch_name], check=True)
-        if do_track:
+        if track_resolution and not _is_superuser():
+            click.echo('[ERROR] --track requires superuser = true in ~/.config/restud/config.toml', err=True)
+            sys.exit(1)
+        if track_resolution:
             track_event(get_current_folder(), 'report_sent', ctx=ctx)
+            if track_resolution != 'report':
+                _track_resolve(get_current_folder(), track_resolution, ctx=ctx)
     else:
         console = Console()
-        console.print("[yellow]Report generated without committing. Files ready for review.[/yellow]")
+        console.print("[yellow]Revision response generated in preview mode. No tracking or remote changes were made.[/yellow]")
 
 
 @cli.command(name='snippet')
@@ -951,6 +1022,34 @@ def track_comment(ctx, value):
     click.echo(f"Comments for {pkg_id} updated.")
 
 
+@track.command('assign')
+@click.argument('assignee')
+@click.argument('task', type=click.Choice(['replication', 'decision'], case_sensitive=False))
+@click.option('--date', '-d', 'assigned_date', default=None,
+              help='Set assigned_date: integer offset from today (e.g. -1 for yesterday) or MM-DD.')
+@click.pass_context
+def track_assign(ctx, assignee, task, assigned_date):
+    """Assign current version to ASSIGNEE for TASK (replication|decision)."""
+    pkg_id = ctx.obj['pkg_id']
+    parsed_date = _parse_date_flag(assigned_date) if assigned_date else _today()
+    _track_assign(pkg_id, assignee=assignee, task=task.lower(), ctx=ctx, assigned_date=parsed_date)
+
+
+@track.command('resolve')
+@click.argument('resolution')
+@click.option('--assignee', '-a', default=None,
+              help='Optional explicit assignee for the follow-up assignment.')
+@click.option('--date', '-d', 'resolved_date', default=None,
+              help='Set resolved_date: integer offset from today (e.g. -1 for yesterday) or MM-DD.')
+@click.pass_context
+def track_resolve(ctx, resolution, assignee, resolved_date):
+    """Resolve the active assignment and create the next assignment."""
+    pkg_id = ctx.obj['pkg_id']
+    parsed_date = _parse_date_flag(resolved_date) if resolved_date else _today()
+    _track_resolve(pkg_id, resolution=resolution, ctx=ctx,
+                   resolved_date=parsed_date, followup_assignee=assignee)
+
+
 @track.command('show')
 @click.option('-p', '--package', 'pkg_override', default=None,
               help='Package number (overrides group -p and current folder name)')
@@ -975,6 +1074,7 @@ def track_show(ctx, pkg_override):
     for v in pkg.get('versions', []):
         n = v['version']
         software_str = ', '.join(v.get('software', [])) or ''
+        assignments = v.get('assignments', [])
         console.print(f"  [bold]Version {n}[/bold]")
         console.print(f"    Replicator   : {v.get('replicator','')}")
         console.print(f"    Zenodo ID    : {v.get('zenodo_id','')}")
@@ -989,6 +1089,14 @@ def track_show(ctx, pkg_override):
             console.print(f"    Data avail.  : {v.get('data_availability','')}")
         if v.get('comments'):
             console.print(f"    Comments     : {v.get('comments','')}")
+        if assignments:
+            open_assignment = next((a for a in reversed(assignments) if not a.get('resolved_date')), None)
+            if open_assignment:
+                console.print(
+                    f"    Open assignment: #{open_assignment.get('id')} "
+                    f"{open_assignment.get('task')} → {open_assignment.get('assignee')} "
+                    f"(since {open_assignment.get('assigned_date')})"
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -1193,11 +1301,127 @@ def reinstall(ctx, branch, use_pip, use_ssh, accre):
 
 
 @cli.command()
+@click.option('--static', 'use_static', is_flag=True,
+              help='Open published dashboard.html from admin repo instead of live rendering from packages.toml.')
 @click.pass_context
-def dashboard(ctx):
+def dashboard(ctx, use_static):
     """Open the package tracking dashboard in a browser."""
-    import base64 as _b64, tempfile, webbrowser
+    import base64 as _b64
+    import tempfile
+    import webbrowser
+    from html import escape
+
+    def _open_html(html_text: str):
+        with tempfile.NamedTemporaryFile(suffix='.html', delete=False, mode='w', encoding='utf-8') as f:
+            f.write(html_text)
+            tmp_path = f.name
+        webbrowser.open(f'file://{tmp_path}')
+
+    def _live_dashboard_html(packages: dict) -> str:
+        status_counts = {}
+        rows = []
+
+        for pkg_id, pkg in sorted(packages.items()):
+            status = pkg.get('status', '')
+            status_counts[status] = status_counts.get(status, 0) + 1
+
+            versions = pkg.get('versions', [])
+            latest_version = max(versions, key=lambda item: int(item.get('version', 0) or 0)) if versions else {}
+
+            assignments = latest_version.get('assignments', [])
+            open_assignment = next((a for a in reversed(assignments) if not a.get('resolved_date')), None)
+
+            rows.append({
+                'pkg_id': pkg_id,
+                'status': status,
+                'version': latest_version.get('version', ''),
+                'replicator': latest_version.get('replicator', ''),
+                'downloaded': latest_version.get('date_downloaded', ''),
+                'report_sent': latest_version.get('date_report_sent', ''),
+                'decision_sent': latest_version.get('date_decision_sent', ''),
+                'recommendation': latest_version.get('recommendation', ''),
+                'de_decision': latest_version.get('de_decision', ''),
+                'hours': latest_version.get('hours', 0.0),
+                'open_task': (open_assignment or {}).get('task', ''),
+                'open_assignee': (open_assignment or {}).get('assignee', ''),
+                'open_since': (open_assignment or {}).get('assigned_date', ''),
+            })
+
+        counts_html = ''.join(
+            f"<span class='pill'><b>{escape(k or 'unknown')}</b>: {v}</span>"
+            for k, v in sorted(status_counts.items(), key=lambda item: item[0])
+        )
+
+        body_rows = []
+        for row in rows:
+            body_rows.append(
+                "<tr>"
+                f"<td>{escape(str(row['pkg_id']))}</td>"
+                f"<td>{escape(str(row['status']))}</td>"
+                f"<td>{escape(str(row['version']))}</td>"
+                f"<td>{escape(str(row['replicator']))}</td>"
+                f"<td>{escape(str(row['open_task']))}</td>"
+                f"<td>{escape(str(row['open_assignee']))}</td>"
+                f"<td>{escape(str(row['open_since']))}</td>"
+                f"<td>{escape(str(row['downloaded']))}</td>"
+                f"<td>{escape(str(row['report_sent']))}</td>"
+                f"<td>{escape(str(row['decision_sent']))}</td>"
+                f"<td>{escape(str(row['recommendation']))}</td>"
+                f"<td>{escape(str(row['de_decision']))}</td>"
+                f"<td>{escape(str(row['hours']))}</td>"
+                "</tr>"
+            )
+
+        table_rows_html = ''.join(body_rows)
+        return f"""
+<!doctype html>
+<html lang=\"en\">
+<head>
+    <meta charset=\"utf-8\" />
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+    <title>REStud Tracking Dashboard</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 24px; }}
+        h1 {{ margin: 0 0 12px 0; }}
+        .meta {{ color: #666; margin-bottom: 12px; }}
+        .pill {{ display: inline-block; border: 1px solid #ccc; border-radius: 999px; padding: 4px 10px; margin: 4px 6px 4px 0; font-size: 12px; }}
+        table {{ border-collapse: collapse; width: 100%; margin-top: 14px; font-size: 13px; }}
+        th, td {{ border: 1px solid #ddd; padding: 6px 8px; text-align: left; }}
+        th {{ background: #f4f4f4; position: sticky; top: 0; }}
+        tr:nth-child(even) {{ background: #fafafa; }}
+    </style>
+</head>
+<body>
+    <h1>REStud Tracking Dashboard (Live)</h1>
+    <div class=\"meta\">Source: {escape(ADMIN_ORG)}/{escape(ADMIN_REPO)}/{escape(ADMIN_FILE)}</div>
+    <div>{counts_html}</div>
+    <table>
+        <thead>
+            <tr>
+                <th>Package</th><th>Status</th><th>Version</th><th>Replicator</th>
+                <th>Open task</th><th>Open assignee</th><th>Open since</th>
+                <th>Downloaded</th><th>Completed</th><th>Decision date</th>
+                <th>Recommendation</th><th>Decision</th><th>Hours</th>
+            </tr>
+        </thead>
+        <tbody>
+            {table_rows_html}
+        </tbody>
+    </table>
+</body>
+</html>
+"""
+
     console = Console()
+    if not use_static:
+        try:
+            packages, _ = _gh_api_get_packages()
+            _open_html(_live_dashboard_html(packages))
+            console.print("[green]Live dashboard opened in browser.[/green]")
+            return
+        except Exception as e:
+            console.print(f"[yellow]Live dashboard failed ({e}); falling back to static dashboard.html.[/yellow]")
+
     result = subprocess.run(
         ['gh', 'api', f'repos/{ADMIN_ORG}/{ADMIN_REPO}/contents/dashboard.html'],
         capture_output=True, text=True)
@@ -1207,11 +1431,8 @@ def dashboard(ctx):
         return
     data = json.loads(result.stdout)
     html = _b64.b64decode(data['content']).decode('utf-8')
-    with tempfile.NamedTemporaryFile(suffix='.html', delete=False, mode='w', encoding='utf-8') as f:
-        f.write(html)
-        tmp_path = f.name
-    webbrowser.open(f'file://{tmp_path}')
-    console.print(f"[green]Dashboard opened in browser.[/green]")
+    _open_html(html)
+    console.print("[green]Static dashboard opened in browser.[/green]")
 
 
 @cli.command(name='config')
@@ -1370,9 +1591,12 @@ def _download_multiple_files(record_id, files, zenodo_key, ctx=None, assign=None
         track_event(pkg_id, 'zenodo_id', str(record_id), ctx=ctx)
         track_event(pkg_id, 'zenodo_url', f'https://zenodo.org/records/{record_id}', ctx=ctx)
         track_event(pkg_id, 'downloaded', ctx=ctx)
-        if assign:
-            track_event(pkg_id, 'replicator', assign, ctx=ctx)
-        console.print(f"[green]Tracking updated for {pkg_id}: downloaded (zenodo {record_id}{', replicator: ' + assign if assign else ''})[/green]")
+        assignee = assign or _get_replicator()
+        track_event(pkg_id, 'replicator', assignee, ctx=ctx)
+        _track_assign(pkg_id, assignee=assignee, task='replication', ctx=ctx,
+                      assigned_by=_get_replicator(), assigned_date=_today(),
+                      message=f"track {pkg_id}: downloaded/assigned (zenodo {record_id})")
+        console.print(f"[green]Tracking updated for {pkg_id}: downloaded and assigned to {assignee} (zenodo {record_id})[/green]")
     else:
         # Subsequent downloads: version branches already exist
         if not has_changes:
@@ -1405,9 +1629,12 @@ def _download_multiple_files(record_id, files, zenodo_key, ctx=None, assign=None
         track_event(pkg_id, 'zenodo_id', str(record_id), ctx=ctx)
         track_event(pkg_id, 'zenodo_url', f'https://zenodo.org/records/{record_id}', ctx=ctx)
         track_event(pkg_id, 'downloaded', ctx=ctx)
-        if assign:
-            track_event(pkg_id, 'replicator', assign, ctx=ctx)
-        console.print(f"[green]Tracking updated for {pkg_id}: downloaded (zenodo {record_id}{', replicator: ' + assign if assign else ''})[/green]")
+        assignee = assign or _get_replicator()
+        track_event(pkg_id, 'replicator', assignee, ctx=ctx)
+        _track_assign(pkg_id, assignee=assignee, task='replication', ctx=ctx,
+                      assigned_by=_get_replicator(), assigned_date=_today(),
+                      message=f"track {pkg_id}: downloaded/assigned (zenodo {record_id})")
+        console.print(f"[green]Tracking updated for {pkg_id}: downloaded and assigned to {assignee} (zenodo {record_id})[/green]")
 
 def _create_cookie():
     """Create new Zenodo session cookie."""
