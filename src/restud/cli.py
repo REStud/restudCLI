@@ -1151,13 +1151,17 @@ def reinstall(ctx, branch, use_pip, use_ssh, accre):
             text=True,
             check=True,
         )
-        if not branch_check.stdout.strip():
+        branch_check_output = branch_check.stdout.strip()
+        if not branch_check_output:
             raise ValueError(f"Remote branch '{branch}' was not found on origin")
 
+        resolved_commit = branch_check_output.split()[0]
+        console.print(f"[dim]Resolved origin/{branch} to {resolved_commit[:12]}[/dim]")
+
         if use_ssh:
-            git_url = f'git+ssh://git@github.com/REStud/restudCLI.git@{branch_ref}'
+            git_url = f'git+ssh://git@github.com/REStud/restudCLI.git@{resolved_commit}'
         else:
-            git_url = f'git+https://github.com/REStud/restudCLI.git@{branch_ref}'
+            git_url = f'git+https://github.com/REStud/restudCLI.git@{resolved_commit}'
 
         if use_pip:
             console.print("[dim]Using pip for installation...[/dim]")
