@@ -8,6 +8,7 @@ from subprocess import CalledProcessError
 import tempfile
 import shutil
 import json
+import stat
 from pathlib import Path
 from typing import Optional
 
@@ -1453,12 +1454,45 @@ def _create_cookie():
 
 def _empty_folder():
     """Remove directories from current folder."""
+    def _make_writable_recursive(path):
+        for root, dirnames, filenames in os.walk(path, topdown=False):
+            for filename in filenames:
+                try:
+                    os.chmod(os.path.join(root, filename), stat.S_IRUSR | stat.S_IWUSR)
+                except OSError:
+                    pass
+            for dirname in dirnames:
+                try:
+                    os.chmod(os.path.join(root, dirname), stat.S_IRWXU)
+                except OSError:
+                    pass
+        try:
+            os.chmod(path, stat.S_IRWXU)
+        except OSError:
+            pass
+
+    def _on_rm_error(func, path, exc_info):
+        if isinstance(exc_info[1], PermissionError):
+            parent = os.path.dirname(path) or '.'
+            try:
+                os.chmod(parent, stat.S_IRWXU)
+            except OSError:
+                pass
+            try:
+                os.chmod(path, stat.S_IRWXU)
+            except OSError:
+                pass
+            func(path)
+            return
+        raise exc_info[1]
+
     dirs = [d for d in os.listdir('.') if os.path.isdir(d)]
     if dirs:
         click.echo("Removing previous directories!")
         for d in dirs:
             if d not in ['.git']:
-                shutil.rmtree(d)
+                _make_writable_recursive(d)
+                shutil.rmtree(d, onerror=_on_rm_error)
     else:
         click.echo("No directories in the folder!")
 
