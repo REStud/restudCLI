@@ -1,9 +1,16 @@
 """
-One-time migration: read Package information(Packages).csv → push to packages.toml on GitHub.
+One-time migration: read Package information(Packages).csv and push an assignment-aware
+packages.toml to GitHub.
+
 Run with: .venv/bin/python migrate_packages.py
 """
-import csv, json, base64, subprocess, toml
+import base64
+import csv
+import json
+import subprocess
 from datetime import datetime
+
+import toml
 
 CSV_PATH = 'Package information(Packages).csv'
 ADMIN_ORG  = 'REStud'
@@ -11,13 +18,20 @@ ADMIN_REPO = 'packages-admin'
 ADMIN_FILE = 'packages.toml'
 
 
+DE_ASSIGNEE = 'Andrea'
+DE_ID = 'de'
+
+
 def parse_date(s):
     if not s or not s.strip():
         return ''
-    try:
-        return datetime.strptime(s.strip(), '%d-%b-%Y').strftime('%Y-%m-%d')
-    except ValueError:
-        return ''
+    raw = s.strip()
+    for fmt in ('%d-%b-%Y', '%d-%b-%y', '%Y-%m-%d'):
+        try:
+            return datetime.strptime(raw, fmt).strftime('%Y-%m-%d')
+        except ValueError:
+            continue
+    return ''
 
 
 def parse_hours(s):
@@ -25,6 +39,85 @@ def parse_hours(s):
         return float(s.strip())
     except (ValueError, AttributeError):
         return 0.0
+
+
+def normalise_resolution(value):
+    key = (value or '').strip().lower()
+    mapping = {
+        'accepted': 'Accept',
+        'accept': 'Accept',
+        'minor': 'Minor',
+        'r&r': 'R&R',
+        'rr': 'R&R',
+        'question me': 'Question ME',
+        'question de': 'Question DE',
+        'question authors': 'Question Authors',
+    }
+    if key in mapping:
+        return mapping[key]
+    return (value or '').strip()
+
+
+def version_assignments(row_data):
+    """Infer assignment flow from CSV dates.
+
+    Flow:
+      1) DE (downloader) assignment at date_received
+      2) Replicator assignment at date_assigned
+      3) DE assignment on date_completed (replicator recommendation handed back)
+      4) DE decision on decision_date
+    """
+    assignments = []
+
+    date_received = parse_date(row_data['date_received'])
+    date_assigned = parse_date(row_data['date_assigned'])
+    date_completed = parse_date(row_data['date_completed'])
+    decision_date = parse_date(row_data['decision_date'])
+    replicator = row_data['replicator'] or 'unknown'
+    recommendation = normalise_resolution(row_data['recommendation'])
+    decision = normalise_resolution(row_data['decision'])
+
+    assignment_id = 1
+
+    if date_received:
+        assignments.append({
+            'id': assignment_id,
+            'task': 'replication',
+            'assignee': DE_ASSIGNEE,
+            'assigned_by': DE_ASSIGNEE,
+            'assigned_date': date_received,
+            'resolved_date': date_assigned or date_received,
+            'resolved_by': DE_ASSIGNEE,
+            'resolution': 'Downloaded',
+        })
+        assignment_id += 1
+
+    if date_assigned or replicator:
+        assignments.append({
+            'id': assignment_id,
+            'task': 'replication',
+            'assignee': replicator,
+            'assigned_by': DE_ASSIGNEE,
+            'assigned_date': date_assigned or date_received,
+            'resolved_date': date_completed,
+            'resolved_by': replicator if date_completed else '',
+            'resolution': recommendation if date_completed else '',
+        })
+        assignment_id += 1
+
+    if date_completed:
+        assignments.append({
+            'id': assignment_id,
+            'task': 'decision',
+            'assignee': DE_ID,
+            'assigned_by': replicator,
+            'assigned_date': date_completed,
+            'resolved_date': decision_date,
+            'resolved_by': DE_ASSIGNEE if decision_date else '',
+            'resolution': decision if decision_date else '',
+        })
+
+    return assignments
 
 
 def map_status(s):
@@ -107,19 +200,24 @@ for ms, ms_rows in packages_raw.items():
 
     for r in ms_rows_sorted:
         software_list = [s.strip() for s in r['software'].split(',') if s.strip()]
+        zenodo_id = r['zenodo']
+        zenodo_url = f"https://zenodo.org/records/{zenodo_id}" if zenodo_id else ''
+
         pkg['versions'].append({
             'version':            r['version'],
             'replicator':         r['replicator'],
-            'zenodo_id':          r['zenodo'],
-            'date_downloaded':    parse_date(r['date_assigned']),
+            'zenodo_id':          zenodo_id,
+            'zenodo_url':         zenodo_url,
+            'date_downloaded':    parse_date(r['date_received']),
             'date_report_sent':   parse_date(r['date_completed']),
             'date_decision_sent': parse_date(r['decision_date']),
             'hours':              parse_hours(r['hours']),
-            'recommendation':     r['recommendation'],
-            'de_decision':        r['decision'],
+            'recommendation':     normalise_resolution(r['recommendation']),
+            'de_decision':        normalise_resolution(r['decision']),
             'software':           software_list,
             'data_availability':  r['data_availability'],
             'comments':           r['comments'],
+            'assignments':        version_assignments(r),
         })
 
     toml_packages[ms] = pkg
@@ -146,7 +244,7 @@ r = subprocess.run(
     capture_output=True, text=True)
 
 if r.returncode == 0:
-    print(f'Done! Imported {len(toml_packages)} packages.')
+    print(f'Done! Imported {len(toml_packages)} packages with assignment timelines.')
 else:
     print('Error:', r.stderr)
     print(r.stdout)
