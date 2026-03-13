@@ -670,17 +670,32 @@ def reinstall(ctx, branch, use_pip, use_ssh, accre):
         if accre:
             use_pip = True
             use_ssh = True
+
+        repo_url = 'git@github.com:REStud/restudCLI.git' if use_ssh else 'https://github.com/REStud/restudCLI.git'
+
+        # Ensure we target a branch head explicitly (avoid ambiguity with tags/other refs).
+        branch_ref = f'refs/heads/{branch}'
+
+        branch_check = subprocess.run(
+            ['git', 'ls-remote', '--heads', repo_url, branch_ref],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        if not branch_check.stdout.strip():
+            raise ValueError(f"Remote branch '{branch}' was not found on origin")
+
         if use_ssh:
-            git_url = f'git+ssh://git@github.com/REStud/restudCLI.git@{branch}'
+            git_url = f'git+ssh://git@github.com/REStud/restudCLI.git@{branch_ref}'
         else:
-            git_url = f'git+https://github.com/REStud/restudCLI.git@{branch}'
+            git_url = f'git+https://github.com/REStud/restudCLI.git@{branch_ref}'
 
         if use_pip:
             console.print("[dim]Using pip for installation...[/dim]")
             env = os.environ.copy()
             env['TMPDIR'] = '/tmp'
             subprocess.run(
-                ['pip', 'install', '--upgrade', '--no-cache-dir', '--user', git_url],
+                [sys.executable, '-m', 'pip', 'install', '--upgrade', '--force-reinstall', '--no-cache-dir', '--user', git_url],
                 check=True,
                 env=env
             )
