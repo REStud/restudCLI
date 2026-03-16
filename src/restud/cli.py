@@ -1319,32 +1319,78 @@ def dashboard(ctx, use_static):
 
     def _live_dashboard_html(packages: dict) -> str:
         status_counts = {}
-        rows = []
+        package_rows = []
+        status_values = set()
+        replicator_values = set()
 
         for pkg_id, pkg in sorted(packages.items()):
             status = pkg.get('status', '')
             status_counts[status] = status_counts.get(status, 0) + 1
+            status_values.add(status or '')
 
             versions = pkg.get('versions', [])
             latest_version = max(versions, key=lambda item: int(item.get('version', 0) or 0)) if versions else {}
+            replicator = latest_version.get('replicator', '') or ''
+            if replicator:
+                replicator_values.add(replicator)
 
             assignments = latest_version.get('assignments', [])
             open_assignment = next((a for a in reversed(assignments) if not a.get('resolved_date')), None)
 
-            rows.append({
+            versions_rows = []
+            for version in sorted(versions, key=lambda item: int(item.get('version', 0) or 0), reverse=True):
+                assignment_items = version.get('assignments', [])
+                if assignment_items:
+                    assignment_lines = []
+                    for assignment in assignment_items:
+                        assignment_lines.append(
+                            "<li>"
+                            f"#{escape(str(assignment.get('id', '')))} "
+                            f"{escape(str(assignment.get('task', '')))} → "
+                            f"{escape(str(assignment.get('assignee', '')))} "
+                            f"(assigned {escape(str(assignment.get('assigned_date', '')))}) "
+                            f"{escape(str(assignment.get('resolution', '')))} "
+                            f"{escape(str(assignment.get('resolved_date', '')))}"
+                            "</li>"
+                        )
+                    assignments_html = f"<ul>{''.join(assignment_lines)}</ul>"
+                else:
+                    assignments_html = ""
+
+                versions_rows.append(
+                    "<tr>"
+                    f"<td>{escape(str(version.get('version', '')))}</td>"
+                    f"<td>{escape(str(version.get('replicator', '')))}</td>"
+                    f"<td>{escape(str(version.get('date_downloaded', '')))}</td>"
+                    f"<td>{escape(str(version.get('date_report_sent', '')))}</td>"
+                    f"<td>{escape(str(version.get('date_decision_sent', '')))}</td>"
+                    f"<td>{escape(str(version.get('recommendation', '')))}</td>"
+                    f"<td>{escape(str(version.get('de_decision', '')))}</td>"
+                    f"<td>{escape(str(version.get('hours', 0.0)))}</td>"
+                    f"<td>{assignments_html}</td>"
+                    "</tr>"
+                )
+
+            details_html = (
+                "<table class='details-table'>"
+                "<thead><tr>"
+                "<th>Version</th><th>Replicator</th><th>Downloaded</th><th>Completed</th><th>Decision date</th>"
+                "<th>Recommendation</th><th>Decision</th><th>Hours</th><th>Assignments</th>"
+                "</tr></thead>"
+                f"<tbody>{''.join(versions_rows)}</tbody>"
+                "</table>"
+            )
+
+            package_rows.append({
                 'pkg_id': pkg_id,
                 'status': status,
                 'version': latest_version.get('version', ''),
-                'replicator': latest_version.get('replicator', ''),
-                'downloaded': latest_version.get('date_downloaded', ''),
-                'report_sent': latest_version.get('date_report_sent', ''),
-                'decision_sent': latest_version.get('date_decision_sent', ''),
-                'recommendation': latest_version.get('recommendation', ''),
-                'de_decision': latest_version.get('de_decision', ''),
-                'hours': latest_version.get('hours', 0.0),
+                'replicator': replicator,
                 'open_task': (open_assignment or {}).get('task', ''),
                 'open_assignee': (open_assignment or {}).get('assignee', ''),
                 'open_since': (open_assignment or {}).get('assigned_date', ''),
+                'hours': latest_version.get('hours', 0.0),
+                'details_html': details_html,
             })
 
         counts_html = ''.join(
@@ -1352,27 +1398,37 @@ def dashboard(ctx, use_static):
             for k, v in sorted(status_counts.items(), key=lambda item: item[0])
         )
 
-        body_rows = []
-        for row in rows:
-            body_rows.append(
-                "<tr>"
-                f"<td>{escape(str(row['pkg_id']))}</td>"
+        status_options = ''.join(
+            f"<option value=\"{escape(s)}\">{escape(s or '(blank)')}</option>"
+            for s in sorted(status_values)
+        )
+        replicator_options = ''.join(
+            f"<option value=\"{escape(r)}\">{escape(r)}</option>"
+            for r in sorted(replicator_values)
+        )
+
+        table_rows = []
+        for row in package_rows:
+            pkg_id = escape(str(row['pkg_id']))
+            table_rows.append(
+                f"<tr class='pkg-row' data-package='{pkg_id}' data-status='{escape(str(row['status']))}' "
+                f"data-replicator='{escape(str(row['replicator']))}' data-version='{escape(str(row['version']))}' "
+                f"data-hours='{escape(str(row['hours']))}'>"
+                f"<td><button class='toggle' data-pkg='{pkg_id}'>+</button> {pkg_id}</td>"
                 f"<td>{escape(str(row['status']))}</td>"
                 f"<td>{escape(str(row['version']))}</td>"
                 f"<td>{escape(str(row['replicator']))}</td>"
                 f"<td>{escape(str(row['open_task']))}</td>"
                 f"<td>{escape(str(row['open_assignee']))}</td>"
                 f"<td>{escape(str(row['open_since']))}</td>"
-                f"<td>{escape(str(row['downloaded']))}</td>"
-                f"<td>{escape(str(row['report_sent']))}</td>"
-                f"<td>{escape(str(row['decision_sent']))}</td>"
-                f"<td>{escape(str(row['recommendation']))}</td>"
-                f"<td>{escape(str(row['de_decision']))}</td>"
                 f"<td>{escape(str(row['hours']))}</td>"
+                "</tr>"
+                f"<tr class='details-row hidden' data-detail='{pkg_id}'>"
+                f"<td colspan='8'>{row['details_html']}</td>"
                 "</tr>"
             )
 
-        table_rows_html = ''.join(body_rows)
+        table_rows_html = ''.join(table_rows)
         return f"""
 <!doctype html>
 <html lang=\"en\">
@@ -1385,29 +1441,138 @@ def dashboard(ctx, use_static):
         h1 {{ margin: 0 0 12px 0; }}
         .meta {{ color: #666; margin-bottom: 12px; }}
         .pill {{ display: inline-block; border: 1px solid #ccc; border-radius: 999px; padding: 4px 10px; margin: 4px 6px 4px 0; font-size: 12px; }}
+        .controls {{ margin: 10px 0 14px 0; display: flex; gap: 12px; align-items: center; }}
+        .controls label {{ font-size: 13px; color: #333; }}
+        .controls select {{ margin-left: 6px; }}
         table {{ border-collapse: collapse; width: 100%; margin-top: 14px; font-size: 13px; }}
         th, td {{ border: 1px solid #ddd; padding: 6px 8px; text-align: left; }}
-        th {{ background: #f4f4f4; position: sticky; top: 0; }}
+        th {{ background: #f4f4f4; position: sticky; top: 0; cursor: pointer; }}
         tr:nth-child(even) {{ background: #fafafa; }}
+        .hidden {{ display: none; }}
+        .toggle {{ width: 24px; height: 24px; }}
+        .details-row td {{ background: #fcfcfc; }}
+        .details-table {{ margin: 8px 0 4px 0; font-size: 12px; }}
+        .details-table th {{ position: static; cursor: default; }}
+        .details-table ul {{ margin: 4px 0; padding-left: 18px; }}
     </style>
 </head>
 <body>
     <h1>REStud Tracking Dashboard (Live)</h1>
     <div class=\"meta\">Source: {escape(ADMIN_ORG)}/{escape(ADMIN_REPO)}/{escape(ADMIN_FILE)}</div>
     <div>{counts_html}</div>
+    <div class="controls">
+        <label>Status
+            <select id="statusFilter">
+                <option value="">All</option>
+                {status_options}
+            </select>
+        </label>
+        <label>Replicator
+            <select id="replicatorFilter">
+                <option value="">All</option>
+                {replicator_options}
+            </select>
+        </label>
+    </div>
     <table>
         <thead>
             <tr>
-                <th>Package</th><th>Status</th><th>Version</th><th>Replicator</th>
-                <th>Open task</th><th>Open assignee</th><th>Open since</th>
-                <th>Downloaded</th><th>Completed</th><th>Decision date</th>
-                <th>Recommendation</th><th>Decision</th><th>Hours</th>
+                <th data-key="package">Package</th><th data-key="status">Status</th><th data-key="version">Version</th><th data-key="replicator">Replicator</th>
+                <th data-key="open_task">Open task</th><th data-key="open_assignee">Open assignee</th><th data-key="open_since">Open since</th>
+                <th data-key="hours">Hours</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="packagesBody">
             {table_rows_html}
         </tbody>
     </table>
+    <script>
+        const sortState = {{ key: 'package', asc: true }};
+
+        function getPkgRows() {{
+            return Array.from(document.querySelectorAll('tr.pkg-row'));
+        }}
+
+        function applyFilters() {{
+            const status = document.getElementById('statusFilter').value;
+            const replicator = document.getElementById('replicatorFilter').value;
+            for (const row of getPkgRows()) {{
+                const okStatus = !status || row.dataset.status === status;
+                const okRep = !replicator || row.dataset.replicator === replicator;
+                const show = okStatus && okRep;
+                row.style.display = show ? '' : 'none';
+                const detail = document.querySelector(`tr.details-row[data-detail="${{row.dataset.package}}"]`);
+                if (detail) {{
+                    detail.style.display = show && !detail.classList.contains('hidden') ? '' : 'none';
+                }}
+            }}
+        }}
+
+        function sortBy(key) {{
+            const body = document.getElementById('packagesBody');
+            const rows = getPkgRows();
+            sortState.asc = sortState.key === key ? !sortState.asc : true;
+            sortState.key = key;
+
+            rows.sort((a, b) => {{
+                let av = '';
+                let bv = '';
+                if (key === 'package') {{
+                    av = a.dataset.package || '';
+                    bv = b.dataset.package || '';
+                }} else if (key === 'status') {{
+                    av = a.dataset.status || '';
+                    bv = b.dataset.status || '';
+                }} else if (key === 'version') {{
+                    av = Number(a.dataset.version || 0);
+                    bv = Number(b.dataset.version || 0);
+                }} else if (key === 'replicator') {{
+                    av = a.dataset.replicator || '';
+                    bv = b.dataset.replicator || '';
+                }} else if (key === 'hours') {{
+                    av = Number(a.dataset.hours || 0);
+                    bv = Number(b.dataset.hours || 0);
+                }} else {{
+                    av = (a.children[0]?.textContent || '').trim();
+                    bv = (b.children[0]?.textContent || '').trim();
+                }}
+
+                let cmp = 0;
+                if (typeof av === 'number' && typeof bv === 'number') {{
+                    cmp = av - bv;
+                }} else {{
+                    cmp = String(av).localeCompare(String(bv));
+                }}
+                return sortState.asc ? cmp : -cmp;
+            }});
+
+            for (const row of rows) {{
+                const detail = document.querySelector(`tr.details-row[data-detail="${{row.dataset.package}}"]`);
+                body.appendChild(row);
+                if (detail) body.appendChild(detail);
+            }}
+            applyFilters();
+        }}
+
+        document.querySelectorAll('th[data-key]').forEach((th) => {{
+            th.addEventListener('click', () => sortBy(th.dataset.key));
+        }});
+
+        document.querySelectorAll('button.toggle').forEach((btn) => {{
+            btn.addEventListener('click', () => {{
+                const pkg = btn.dataset.pkg;
+                const detail = document.querySelector(`tr.details-row[data-detail="${{pkg}}"]`);
+                if (!detail) return;
+                const nowHidden = detail.classList.toggle('hidden');
+                btn.textContent = nowHidden ? '+' : '−';
+                applyFilters();
+            }});
+        }});
+
+        document.getElementById('statusFilter').addEventListener('change', applyFilters);
+        document.getElementById('replicatorFilter').addEventListener('change', applyFilters);
+        sortBy('package');
+    </script>
 </body>
 </html>
 """
