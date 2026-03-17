@@ -511,7 +511,7 @@ def pull(ctx, package_name):
         os.chdir(package_name)
     else:
         os.chdir(package_name)
-        subprocess.run(['git', 'pull'], check=True)
+        subprocess.run(['git', 'fetch', 'origin'], check=True)
 
     # Get latest version and switch to it
     result = subprocess.run(['git', 'branch', '-r'], capture_output=True, text=True, check=True)
