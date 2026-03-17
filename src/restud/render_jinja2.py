@@ -96,29 +96,15 @@ class ReportRenderer:
 
     def substitute_tags(self, data: Dict[str, Any], snippets: Dict[str, str]) -> Dict[str, Any]:
         """
-        Substitute tag references (like 'cite_data') with snippet values in comments
+        Substitute tag references (like 'cite_data') with snippet values.
 
         Args:
             data: Report data dictionary
             snippets: Snippets dictionary with tag values
 
         Returns:
-            Data with tags substituted in comments
+            Data with tags substituted in top-level request/recommendation lists
         """
-        if 'dcas_rules' not in data:
-            return data
-
-        for rule in data.get('dcas_rules', []):
-            if 'comments' in rule and rule['comments']:
-                new_comments = []
-                for comment in rule['comments']:
-                    # Check if comment is a tag reference (exists in snippets)
-                    if comment in snippets:
-                        new_comments.append(snippets[comment])
-                    else:
-                        new_comments.append(comment)
-                rule['comments'] = new_comments
-
         # Also substitute in recommendations
         recommendations = data.get('recommendations', [])
         if recommendations and isinstance(recommendations, list):
@@ -148,47 +134,6 @@ class ReportRenderer:
                         req['text'] = snippets[req['text']]
 
         return data
-
-    def build_comments_from_dcas(self, report: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """
-        Build comments list from DCAS rules with non-yes answers.
-        Similar to the old render.py approach.
-
-        Args:
-            report: Report data dictionary
-
-        Returns:
-            List of comment dicts with 'text' and 'number' keys
-        """
-        comments = []
-        for rule in report.get('dcas_rules', []):
-            # Skip if answer is yes
-            if rule.get('answer') == 'yes':
-                continue
-            # Skip if answer is na/yes and no comments
-            if rule.get('answer') == 'yes' and not rule.get('comments'):
-                continue
-
-            # Add each comment with rule context
-            if rule.get('comments'):
-                for comment in rule['comments']:
-                    # Normalize multi-line strings: replace newlines with spaces, strip extra whitespace
-                    normalized_text = ' '.join(str(comment).split())
-                    # Format: {"text": comment, "number": rule_number}
-                    comments.append({
-                        'text': normalized_text,
-                        'number': rule.get('number')
-                    })
-            elif rule.get('text'):
-                # If no comments but has text, use text
-                normalized_text = ' '.join(str(rule['text']).split())
-                comments.append({
-                    'text': normalized_text,
-                    'number': rule.get('number')
-                })
-
-        return comments
-
     def generate_report(
         self,
         report_path: str,
@@ -213,9 +158,6 @@ class ReportRenderer:
 
         # Substitute tag references with snippet values
         report = self.substitute_tags(report, snippets)
-
-        # Build comments from DCAS rules with non-yes answers
-        report['comments'] = self.build_comments_from_dcas(report)
 
         # Filter empty sections
         report = self.filter_empty_sections(report)
@@ -242,16 +184,6 @@ class ReportRenderer:
             # Check for required sections
             if 'metadata' not in data:
                 return False, "Missing required 'metadata' section"
-
-            # Validate dcas_rules entries have required fields
-            dcas_rules = data.get('dcas_rules', [])
-            for i, rule in enumerate(dcas_rules):
-                if 'answer' not in rule:
-                    return False, f"dcas_rules[{i}] missing required 'answer' field"
-                if 'text' not in rule:
-                    return False, f"dcas_rules[{i}] missing required 'text' field"
-                if rule['answer'] not in ['yes', 'no', 'maybe']:
-                    return False, f"dcas_rules[{i}] invalid answer: {rule['answer']}"
 
             return True, "Valid"
 

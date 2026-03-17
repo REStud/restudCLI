@@ -18,7 +18,7 @@ Please address the following {% if requests|length == 1 %} comment: {% else %}co
 
 
 {% for req in requests %}
-{{ (comments|length if comments else 0) + loop.index }}. {% if req is string %}{{ req }}{% else %}{{ req.text }}{% endif %}
+{{ loop.index }}. {% if req is string %}{{ req }}{% else %}{{ req.text }}{% endif %}
 
 
 {% endfor %}

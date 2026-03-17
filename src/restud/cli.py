@@ -78,32 +78,6 @@ def get_git_accepted_tag():
         return False
 
 
-def get_report_status():
-    """Check report.yaml status if it exists."""
-    if not os.path.exists('report.yaml'):
-        return None
-
-    try:
-        from yamlcore import CoreLoader
-        tags_file = get_template_path('template-answers.yaml')
-        with open('report.yaml', 'r', encoding='utf-8') as f_report, open(tags_file, 'r', encoding='utf-8') as f_tags:
-            combined = f_tags.read() + '\n' + f_report.read()
-        content = yaml.load(combined, Loader=CoreLoader)
-
-        if not content or content.get('version', 1) < 2:
-            return "report"
-
-        dcas_rules = content.get('DCAS_rules', [])
-        if not dcas_rules:
-            return "report"
-
-        has_issues = any((rule.get('answer', '').lower() == 'no') for rule in dcas_rules)
-        return "issues" if has_issues else "good"
-
-    except Exception:
-        return "report"
-
-
 # ---------------------------------------------------------------------------
 # Admin repo / package tracking helpers
 # ---------------------------------------------------------------------------
@@ -2095,30 +2069,6 @@ def _add_manuscript_id_to_report():
 
     with open(report_file, 'w', encoding='utf-8') as f:
         f.write(content)
-
-
-def _get_dcas_rule_answer(dcas_reference):
-    """Get the answer to a specific DCAS rule by its reference."""
-    try:
-        from yamlcore import CoreLoader
-        tags_file = get_template_path('template-answers.yaml')
-        with open('report.yaml', 'r', encoding='utf-8') as f_report, open(tags_file, 'r', encoding='utf-8') as f_tags:
-            combined = f_tags.read() + '\n' + f_report.read()
-        content = yaml.load(combined, Loader=CoreLoader)
-
-        if content and 'DCAS_rules' in content:
-            for rule in content['DCAS_rules']:
-                ref = rule.get('dcas_reference', '')
-                answer = rule.get('answer', '')
-                # Handle both string and boolean/other types
-                answer_str = str(answer).lower() if answer is not None else ''
-                if ref == dcas_reference:
-                    return answer_str
-        click.echo(f"[DEBUG] No rule found for {dcas_reference}", err=True)
-    except Exception as e:
-        click.echo(f"[DEBUG] Error reading report.yaml: {e}", err=True)
-        return None
-    return None
 
 
 def _check_community(ctx):
