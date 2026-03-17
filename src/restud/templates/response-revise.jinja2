@@ -4,11 +4,8 @@ Data editor report, ReStud MS {{ metadata.manuscript_id }}
 Dear {{ metadata.salutation }},
 
 {% if branch_name == "version1" %}
-Congratulations on your acceptance to ReStud, and thank you for sending the replication materials for "{{ metadata.title }}" to the Review.
-{% else %}
-Thank you for submitting a revision of your replication materials for "{{ metadata.title }}".
-{% endif %}
-To help our readers replicate your results, my team and I have reviewed the code, data and documentation you have submitted.
+Congratulations on your acceptance to ReStud, and thank you for sending the replication materials for "{{ metadata.title }}" to the Review.{% else %}Thank you for submitting a revision of your replication materials for "{{ metadata.title }}".{% endif %} To help our readers replicate your results, my team and I have reviewed the code, data and documentation you have submitted.
+
 {% if beginning %}{{ beginning }}
 
 {% endif %}
