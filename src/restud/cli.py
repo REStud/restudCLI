@@ -1755,7 +1755,8 @@ def _download_multiple_files(record_id, files, zenodo_key, ctx=None, assign=None
             if _version_is_empty(latest_version):
                 console.print(f'First download: merging into existing version{latest_version}')
                 subprocess.run(['git', 'checkout', f'version{latest_version}'], check=False)
-                subprocess.run(['git', 'clean', '-fd'], check=True)
+                subprocess.run(['chmod', '-R', 'u+w', '.'], check=False)
+                subprocess.run(['git', 'clean', '-fd'], check=False)
                 subprocess.run(['git', 'merge', 'author', '--no-edit'], check=True)
                 subprocess.run(['git', 'push'], check=True)
             else:
