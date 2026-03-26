@@ -22,6 +22,9 @@ replicator = "Replicator_Name"
 # anything to add at the end before the final salutation goes here
 [endmessage]
 
+# anything will be ignored below
+[internal comments]
+
 # TAG USAGE:
 # Use tag names with * prefix to reference snippets
 # (e.g. start a request with - *DAS)
