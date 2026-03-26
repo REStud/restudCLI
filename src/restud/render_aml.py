@@ -82,6 +82,13 @@ def parse_aml(report_path: str) -> Dict[str, Any]:
     # Preserve line endings stripped
     lines = [l.rstrip('\n') for l in raw_lines]
 
+    # Ignore anything below [internal comments] (case-insensitive)
+    cutoff_re = re.compile(r'^\s*\[\s*internal\s+comments\s*\]\s*$', re.IGNORECASE)
+    for idx, line in enumerate(lines):
+        if cutoff_re.match(line):
+            lines = lines[:idx]
+            break
+
     # Remove comment lines
     lines = _strip_comments(lines)
 
