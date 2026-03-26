@@ -156,6 +156,23 @@ def _resolve_assign(assign) -> str:
         return Prompt.ask("Replicator name", console=console).strip() or None
 
 
+def _resolve_track_assign_args(args) -> tuple[str, str]:
+    """Allow `track assign ASSIGNEE TASK` or `track assign TASK` with assignee picker."""
+    if len(args) == 2:
+        assignee, task = args
+    elif len(args) == 1:
+        assignee, task = _resolve_assign(''), args[0]
+    else:
+        raise click.UsageError("Usage: restud track assign [ASSIGNEE] TASK")
+
+    task_clean = task.lower().strip()
+    if task_clean not in ASSIGNMENT_TASKS:
+        raise click.UsageError(f"TASK must be one of: {', '.join(ASSIGNMENT_TASKS)}")
+    if not assignee:
+        raise click.UsageError('No assignee selected.')
+    return assignee, task_clean
+
+
 def _gh_api_get_packages():
     """Fetch packages.toml content from GitHub API. Returns (packages_dict, sha). No data written to disk."""
     import base64
@@ -742,29 +759,15 @@ def download(ctx, record_id, assign, notrack):
 
 
 def _download_record_by_id(record_id, ctx=None, assign=None):
-    """Download package from Zenodo draft by record ID and process it via the shared flow."""
+    """Download package from a Zenodo draft or published record by record ID."""
 
-    # Get Zenodo API key
-    zenodo_key = _get_zenodo_key()
-
-    # Query the draft API to get available files
     console = Console()
     console.print(f"[blue]Fetching file list for record {record_id}...[/blue]")
-
-    api_url = f"https://zenodo.org/api/records/{record_id}/draft"
-    response = requests.get(f"{api_url}?access_token={zenodo_key}")
-
-    if response.status_code != 200:
-        console.print(f"[red]Error: Could not access draft record {record_id}[/red]")
-        console.print(f"[red]Status code: {response.status_code}[/red]")
-        console.print(f"[red]Response: {response.text}[/red]")
-        sys.exit(1)
-
-    data = response.json()
+    data, record_info = _fetch_zenodo_record(record_id, console)
 
     # Get files from the response
     if 'files' not in data or not data['files']:
-        console.print("[red]Error: No files found in this draft[/red]")
+        console.print(f"[red]Error: No files found in this {record_info['kind']} record[/red]")
         sys.exit(1)
 
     files = data['files']
@@ -775,7 +778,7 @@ def _download_record_by_id(record_id, ctx=None, assign=None):
         size_mb = file_info.get('size', 0) / (1024 * 1024)
         console.print(f"  {idx}. {file_info['key']} ({size_mb:.2f} MB)")
 
-    _download_multiple_files(record_id, files, zenodo_key, ctx=ctx, assign=assign)
+    _download_multiple_files(record_id, files, record_info, ctx=ctx, assign=assign)
 
 
 @cli.command()
@@ -997,16 +1000,16 @@ def track_comment(ctx, value):
 
 
 @track.command('assign')
-@click.argument('assignee')
-@click.argument('task', type=click.Choice(['replication', 'decision'], case_sensitive=False))
+@click.argument('args', nargs=-1)
 @click.option('--date', '-d', 'assigned_date', default=None,
               help='Set assigned_date: integer offset from today (e.g. -1 for yesterday) or MM-DD.')
 @click.pass_context
-def track_assign(ctx, assignee, task, assigned_date):
-    """Assign current version to ASSIGNEE for TASK (replication|decision)."""
+def track_assign(ctx, args, assigned_date):
+    """Assign current version using `track assign ASSIGNEE TASK` or `track assign TASK`."""
     pkg_id = ctx.obj['pkg_id']
+    assignee, task = _resolve_track_assign_args(args)
     parsed_date = _parse_date_flag(assigned_date) if assigned_date else _today()
-    _track_assign(pkg_id, assignee=assignee, task=task.lower(), ctx=ctx, assigned_date=parsed_date)
+    _track_assign(pkg_id, assignee=assignee, task=task, ctx=ctx, assigned_date=parsed_date)
 
 
 @track.command('resolve')
@@ -1611,6 +1614,51 @@ def _get_zenodo_key():
         return f.read().strip()
 
 
+def _try_get_zenodo_key() -> Optional[str]:
+    """Get Zenodo API key from config file, if present."""
+    key_file = os.path.expanduser('~/.config/.zenodo_api_key')
+    if not os.path.exists(key_file):
+        return None
+    with open(key_file, 'r') as f:
+        key = f.read().strip()
+    return key or None
+
+
+def _fetch_zenodo_record(record_id: str, console: Console) -> tuple[dict, dict]:
+    """Fetch Zenodo metadata for either a draft or a published record."""
+    draft_url = f"https://zenodo.org/api/records/{record_id}/draft"
+    published_url = f"https://zenodo.org/api/records/{record_id}"
+    zenodo_key = _try_get_zenodo_key()
+
+    draft_response = None
+    if zenodo_key:
+        draft_response = requests.get(draft_url, params={'access_token': zenodo_key})
+        if draft_response.status_code == 200:
+            return draft_response.json(), {
+                'kind': 'draft',
+                'metadata_url': draft_url,
+                'zenodo_key': zenodo_key,
+            }
+
+    published_response = requests.get(published_url)
+    if published_response.status_code == 200:
+        return published_response.json(), {
+            'kind': 'published',
+            'metadata_url': f'https://zenodo.org/records/{record_id}',
+            'zenodo_key': None,
+        }
+
+    console.print(f"[red]Error: Could not access draft or published record {record_id}[/red]")
+    if draft_response is not None:
+        console.print(f"[red]Draft status code: {draft_response.status_code}[/red]")
+        console.print(f"[red]Draft response: {draft_response.text}[/red]")
+    else:
+        console.print("[red]Draft lookup skipped: no Zenodo API key found in ~/.config/.zenodo_api_key[/red]")
+    console.print(f"[red]Published status code: {published_response.status_code}[/red]")
+    console.print(f"[red]Published response: {published_response.text}[/red]")
+    sys.exit(1)
+
+
 def _download_zenodo(url, api_key):
     """Download from Zenodo with API key."""
     response = requests.get(f"{url}?access_token={api_key}", stream=True)
@@ -1644,8 +1692,8 @@ def _download_zenodo_preview(url):
     os.remove('repo.zip')
 
 
-def _download_multiple_files(record_id, files, zenodo_key, ctx=None, assign=None):
-    """Download multiple files from Zenodo draft.
+def _download_multiple_files(record_id, files, record_info, ctx=None, assign=None):
+    """Download multiple files from a Zenodo draft or published record.
 
     Downloads all files, unzips only .zip files, and keeps other files as-is.
     Handles branch management and commits all changes together.
@@ -1668,16 +1716,20 @@ def _download_multiple_files(record_id, files, zenodo_key, ctx=None, assign=None
     zip_files = []
     for file_info in files:
         filename = file_info['key']
-        download_url = f"https://zenodo.org/api/records/{record_id}/draft/files/{filename}/content"
+        links = file_info.get('links', {})
+        download_url = (
+            links.get('content') or
+            links.get('download') or
+            links.get('self') or
+            f"https://zenodo.org/api/records/{record_id}{'/draft' if record_info['kind'] == 'draft' else ''}/files/{filename}/content"
+        )
 
         console.print(f"[blue]Downloading {filename}...[/blue]")
 
-        if "preview" in download_url:
-            cookie_value = _get_cookie()
-            headers = {'Cookie': f'session={cookie_value}'}
-            response = requests.get(download_url, headers=headers, stream=True)
-        else:
-            response = requests.get(f"{download_url}?access_token={zenodo_key}", stream=True)
+        request_kwargs = {'stream': True}
+        if record_info['kind'] == 'draft' and record_info['zenodo_key']:
+            request_kwargs['params'] = {'access_token': record_info['zenodo_key']}
+        response = requests.get(download_url, **request_kwargs)
 
         response.raise_for_status()
 
@@ -1702,7 +1754,7 @@ def _download_multiple_files(record_id, files, zenodo_key, ctx=None, assign=None
     _check_for_files()
 
     # Save zenodo metadata before checking for changes so it is included
-    _save_zenodo_metadata(f"https://zenodo.org/api/records/{record_id}/draft")
+    _save_zenodo_metadata(record_info['metadata_url'])
     subprocess.run(['git', 'add', '.zenodo'], check=True)
 
     # Check if there are staged changes to commit
@@ -1754,6 +1806,7 @@ def _download_multiple_files(record_id, files, zenodo_key, ctx=None, assign=None
 
             if _version_is_empty(latest_version):
                 console.print(f'First download: merging into existing version{latest_version}')
+                subprocess.run(['chmod', '-R', 'u+w', '.'], check=False)
                 subprocess.run(['git', 'checkout', f'version{latest_version}'], check=False)
                 subprocess.run(['chmod', '-R', 'u+w', '.'], check=False)
                 subprocess.run(['git', 'clean', '-fd'], check=False)
@@ -2039,7 +2092,7 @@ def _copy_report_from_previous_version(latest_version):
 def _save_zenodo_metadata(url):
     """Save Zenodo URL and ID to .zenodo file in YAML format."""
     import re
-    match = re.search(r'/(\d+)/', url)
+    match = re.search(r'/(\d+)(?:/|$|\?)', url)
     if match:
         zenodo_id = match.group(1)
         zenodo_data = {
