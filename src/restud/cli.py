@@ -1251,13 +1251,32 @@ def reinstall(ctx, branch, use_pip, use_ssh, accre):
 
         if use_pip:
             console.print("[dim]Using pip for installation...[/dim]")
+            pip_cmd = [sys.executable, '-m', 'pip', 'install', '--upgrade', '--no-cache-dir', '--user']
+            # ACCRE/PanFS can fail with Errno 16 during force-reinstall cleanup.
+            if accre:
+                pip_cmd.append('--ignore-installed')
+            else:
+                pip_cmd.append('--force-reinstall')
+            pip_cmd.append(git_url)
+
             env = os.environ.copy()
-            env['TMPDIR'] = '/tmp'
-            subprocess.run(
-                [sys.executable, '-m', 'pip', 'install', '--upgrade', '--force-reinstall', '--no-cache-dir', '--user', git_url],
-                check=True,
-                env=env
-            )
+
+            def _run_pip_once() -> None:
+                with tempfile.TemporaryDirectory(prefix='restud-pip-', dir='/tmp') as tmp_dir:
+                    pip_env = env.copy()
+                    pip_env['TMPDIR'] = tmp_dir
+                    pip_env['TMP'] = tmp_dir
+                    pip_env['TEMP'] = tmp_dir
+                    subprocess.run(pip_cmd, check=True, env=pip_env)
+
+            try:
+                _run_pip_once()
+            except subprocess.CalledProcessError as e:
+                if accre and ('Errno 16' in str(e) or 'build-tracker' in str(e) or 'Errno 2' in str(e)):
+                    console.print("[yellow]Retrying pip install after temporary filesystem/build-tracker error...[/yellow]")
+                    _run_pip_once()
+                else:
+                    raise
         else:
             console.print("[dim]Using uv for installation...[/dim]")
             subprocess.run(
