@@ -855,9 +855,13 @@ def reinstall(ctx, branch, use_pip, use_ssh, accre):
             pip_cmd.append(git_url)
 
             env = os.environ.copy()
+            tmp_parent = os.path.expanduser('~/.tmp')
+            tmp_root = os.path.join(tmp_parent, 'restud')
+            os.makedirs(tmp_parent, exist_ok=True)
+            os.makedirs(tmp_root, exist_ok=True)
 
             def _run_pip_once() -> None:
-                with tempfile.TemporaryDirectory(prefix='restud-pip-', dir='/tmp') as tmp_dir:
+                with tempfile.TemporaryDirectory(prefix='restud-pip-', dir=tmp_root) as tmp_dir:
                     pip_env = env.copy()
                     pip_env['TMPDIR'] = tmp_dir
                     pip_env['TMP'] = tmp_dir
@@ -872,6 +876,9 @@ def reinstall(ctx, branch, use_pip, use_ssh, accre):
                     _run_pip_once()
                 else:
                     raise
+            finally:
+                # Clean up only ~/.tmp/restud and keep ~/.tmp intact.
+                shutil.rmtree(tmp_root, ignore_errors=True)
         else:
             console.print("[dim]Using uv for installation...[/dim]")
             subprocess.run(
